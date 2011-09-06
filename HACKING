@@ -1,0 +1,30 @@
+osm-c-tools - Notes for development
+-----------------------------------
+
+- If you're cloning the repository for the first time, you need to run
+  `autoreconf --install` to generate all the autotools files. These
+  should be ignored by the /.gitignore file, please add patterns as
+  appropriate.
+
+- Autotools-generated files should NEVER be committed to the
+  repository (that's why we're ignoring them) -- just edit the proper
+  files if you need to change behaviour (configure.ac and Makefile.am)
+
+- Each time you change one of the files above, run `autoreconf
+  --install` to ensure everything is ok. Always assume malicious
+  users :)
+
+- When releasing a tarball, increase the version number in
+  configure.ac, and run:
+
+      $ autoreconf --install
+      $ ./configure
+      $ make dist-all
+
+  This will create a properly named and versioned tarball, ready
+  for users to compile and install.
+
+- Each time you run `./configure`, please make sure to run
+  `make distclean` afterwards, to ensure no generated files are
+  seen as 'unstaged' by git. These could also be put in /.gitignore,
+  really.
