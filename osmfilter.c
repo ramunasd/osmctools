@@ -1,6 +1,6 @@
 // osmfilter 2011-09-05 15:50
 #define VERSION "1.0U"
-// (c) Markus Weber, Nuernberg
+// (c) 2011, Markus Weber, Nuernberg
 //
 // This program is free software; you can redistribute it and/or
 // modify it under the terms of the GNU Affero General Public License

@@ -1,6 +1,6 @@
 // osmconvert 2011-09-05 15:50
 #define VERSION "0.2U"
-// (c) Markus Weber, Nuernberg
+// (c) 2011, Markus Weber, Nuernberg
 //
 // compile this source with option -lz
 //
