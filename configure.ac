@@ -10,6 +10,7 @@ if test "x$enable_osmconvert" = "xno"; then
 fi
 AM_CONDITIONAL(ENABLE_OSMCONVERT, test "x$enable_osmconvert" = xyes)
 
+AC_CONFIG_HEADERS([include/config.h])
 AC_CONFIG_FILES([Makefile src/Makefile])
 
 AC_OUTPUT
