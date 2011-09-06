@@ -4,12 +4,9 @@ AM_INIT_AUTOMAKE([foreign -Wall -Werror])
 
 AC_PROG_CC
 
-AC_CHECK_LIB(z, gzopen,
-	[enable_osmconvert=yes],
-	[enable_osmconvert=no])
-if test "x$enable_osmconvert" = "xyes"; then
-	AC_DEFINE(HAVE_LIBZ, 1, [Define to 1 if zlib support is included])
-	ZLIB='-lz'
+AC_CHECK_LIB(z, gzopen, [enable_osmconvert=yes], [enable_osmconvert=no])
+if test "x$enable_osmconvert" = "xno"; then
+	AC_MSG_WARN([zlib not found, osmconvert will not be compiled])
 fi
 AM_CONDITIONAL(ENABLE_OSMCONVERT, test "x$enable_osmconvert" = xyes)
 
