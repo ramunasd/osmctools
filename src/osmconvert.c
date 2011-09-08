@@ -1,6 +1,6 @@
-// osmconvert 2011-09-05 15:50
-#define VERSION "0.2U"
-// (c) 2011, Markus Weber, Nuernberg
+// osmconvert 2011-09-08 19:10
+#define VERSION "0.2V"
+// (c) Markus Weber, Nuernberg
 //
 // compile this source with option -lz
 //
@@ -21,14 +21,14 @@
 const char* helptext=
 "\nosmconvert " VERSION "\n"
 "\n"
-"This program reads different file formats of the OpenStreetMap\n"
+"This program reads a different file formats of the OpenStreetMap\n"
 "project and converts the data to the selected output file format.\n"
 "These formats can be read:\n"
 "  .osm  .osc  .osh  .o5m  .o5c  .pbf\n"
 "These formats can be written:\n"
 "  .osm (default)  .osc  .osh  .o5m  .o5c\n"
 "\n"
-"Names of input files must be specified as command line parameters.\n"
+"Names of input files must be specified as calling line parameters.\n"
 "Use - to read from standard input. You do not need to specify the\n"
 "input formats, osmconvert will recognize them by itself.\n"
 "The output format is .osm by default. If you want a different format,\n"
@@ -46,7 +46,7 @@ const char* helptext=
 "        The format of a border polygon file can be found in the OSM\n"
 "        Wiki: http://wiki.openstreetmap.org/wiki/Osmosis/\n"
 "              Polygon_Filter_File_Format\n"
-"        You do not need to strictly follow the format description,\n"
+"        You do not need to follow strictly the format description,\n"
 "        you must ensure that every line of coordinates starts with\n"
 "        blanks.\n"
 "\n"
@@ -73,7 +73,7 @@ const char* helptext=
 "        Calculate difference between two files and create a new .osc\n"
 "        or .o5c file.\n"
 "        There are certain limitations if this option is chosen:\n"
-"        there must be TWO input files and borders cannot be applied.\n"
+"        There must be TWO input files and borders cannot be applied.\n"
 "\n"
 "--diff-contents\n"
 "        Similar to --diff, this option calculates differences between\n"
@@ -127,8 +127,7 @@ const char* helptext=
 "        their ids only.\n"
 "\n"
 "--out-osh\n"
-"        For every OSM object, the appropriate \'visible\' tag will be\n"
-"        added to meet \'full planet history\' specification.\n"
+"        For every OSM object, the appropriate \'visible\' tag will be\n" "        added to meet \'full planet history\' specification.\n"
 "\n"
 "--out-o5m\n"
 "        The .o5m format will be used. This format has the same\n"
@@ -343,7 +342,7 @@ static char global_tempfilename[350]= "osmconvert_tempfile";
   fprintf(stderr,"osmconvert: " f "\n"); // print info message
 #define ONAME(i) \
   (i==0? "node": i==1? "way": i==2? "relation": "unknown object")
-#define global_fileM 400  // maximum number of input files
+#define global_fileM 1002  // maximum number of input files
 
 //------------------------------------------------------------
 // end   Module Global   global variables for this program
@@ -3220,7 +3219,7 @@ return 0;
 static char rr__filename[400]= "";
 static int rr__fd= -1;  // file descriptor for temporary file
 #define rr__bufM 400000
-static int32_t rr__buf[rr__bufM],*rr__bufp,*rr__bufe,*rr__bufee;
+static int64_t rr__buf[rr__bufM],*rr__bufp,*rr__bufe,*rr__bufee;
   // buffer - used for write, and later for read;
 static bool rr__writemode;  // buffer is used for writing
 
@@ -3231,7 +3230,7 @@ return;
   rr__bufp= rr__buf;
   }  // end   rr__flush()
 
-static inline void rr__write(int32_t i) {
+static inline void rr__write(int64_t i) {
   // write an int to tempfile, use a buffer;
   if(rr__bufp>=rr__bufee) rr__flush();
   *rr__bufp++= i;
@@ -3270,13 +3269,13 @@ return 1;
   return 0;
   }  // end   rr_ini()
 
-static inline void rr_rel(int32_t relid) {
+static inline void rr_rel(int64_t relid) {
   // store the id of a relation in tempfile;
   rr__write(0);
   rr__write(relid);
   } // end   rr_rel()
 
-static inline void rr_ref(int32_t refid) {
+static inline void rr_ref(int64_t refid) {
   // store the id of an interrelation reference in tempfile;
   rr__write(refid);
   } // end   rr_ref()
@@ -3294,13 +3293,13 @@ return 1;
   return 0;
   } // end   rr_rewind()
 
-static inline int rr_read(int32_t* ip) {
+static inline int rr_read(int64_t* ip) {
   // read one integer; meaning of the values of these integers:
   // every value is an interrelation reference id, with one exception:
   // integers which follow a 0-integer directly are relation ids;
-  // note that we take 32-bit-integers instead of the 64-bit-integers
-  // we usually take for object ids; this is because the range of
-  // relation ids will not exceed the 2^15 range in near future;
+  // note that we take 64-bit-integers although the number of relations
+  // will never exceed 2^31; the reason is that Free OSM ("FOSM") uses
+  // IDs > 2^16 for new data which adhere the cc-by-sa license;
   // return: ==0: ok; !=0: eof;
   int r,r2;
 
@@ -3308,13 +3307,13 @@ static inline int rr_read(int32_t* ip) {
     r= read(rr__fd,rr__buf,sizeof(rr__buf));
     if(r<=0)
 return 1;
-    rr__bufe= (int32_t*)((char*)rr__buf+r);
-    if((r%4)!=0) { // odd number of bytes
-      r2= read(rr__fd,rr__bufe,4-(r%4));  // request the missing bytes
+    rr__bufe= (int64_t*)((char*)rr__buf+r);
+    if((r%8)!=0) { // odd number of bytes
+      r2= read(rr__fd,rr__bufe,8-(r%8));  // request the missing bytes
       if(r2<=0)  // did not get the missing bytes
-        rr__bufe= (int32_t*)((char*)rr__bufe-(r%4));
+        rr__bufe= (int64_t*)((char*)rr__bufe-(r%8));
       else
-        rr__bufe= (int32_t*)((char*)rr__bufe+r2);
+        rr__bufe= (int64_t*)((char*)rr__bufe+r2);
       }
     rr__bufp= rr__buf;
     }
@@ -4608,8 +4607,8 @@ static void oo__rrprocessing(int* maxrewindp) {
     // if none of the relations' flags has been changed,
     // this procedure will end;
   int h;
-  int32_t relid;  // relation id;
-  int32_t refid;  // interrelation reference id;
+  int64_t relid;  // relation id;
+  int64_t refid;  // interrelation reference id;
   bool flag;
 
   h= 0;
@@ -5560,6 +5559,8 @@ static bool oo_open(const char* filename) {
 
   if(oo__ife>=oo__ifee) {
     fprintf(stderr,"osmconvert Error: too many input files.\n");
+    fprintf(stderr,"osmconvert Error: too many input files: %d>%d\n",
+      oo__ife-oo__if,global_fileM);
 return 2;
     }
   if(read_open(filename)!=0)
@@ -6482,7 +6483,7 @@ return 24;
             rt= *reftypep;
             if(rt==2) {  // referenced object is a relation
               if(!idwritten) {  // did not yet write our relation's id
-                rr_rel((int32_t)id);  // write it now
+                rr_rel(id);  // write it now
                 idwritten= true;
                 }
               rr_ref(ri);
@@ -6843,7 +6844,7 @@ return 0;
         // border consideration by a bounding box
       if(!border_box(a+3)) {
         fprintf(stderr,"osmconvert Error: use border format: "
-          " -b\"x1,y1,x2,y2\"\n");
+          " -b=\"x1,y1,x2,y2\"\n");
 return 3;
         }  // end   border consideration by a bounding box
       continue;  // take next parameter
