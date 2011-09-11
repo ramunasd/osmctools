@@ -1,6 +1,6 @@
-// osmfilter 2011-09-05 15:50
-#define VERSION "1.0U"
-// (c) 2011, Markus Weber, Nuernberg
+// osmfilter 2011-09-11 07:30
+#define VERSION "1.1"
+// (c) Markus Weber, Nuernberg
 //
 // This program is free software; you can redistribute it and/or
 // modify it under the terms of the GNU Affero General Public License
@@ -134,10 +134,6 @@ const char* helptext=
 "        criteria will be included as well. Same applies to members of\n"
 "        included relations. If you activate this option, all these\n"
 "        dependencies between OSM objects will be ignored.\n"
-"\n"
-"--in-josm\n"
-"        XML data shall be accepted in JOSM format: apostrophe instead\n"
-"        of qoutes.\n"
 "\n"
 "--out-key=KEYNAME\n"
 "        The output will contain no regular OSM data but only\n"
@@ -314,8 +310,6 @@ static bool global_fakelonlat= false;
 static bool global_dropnodes= false;  // exclude nodes section
 static bool global_dropways= false;  // exclude ways section
 static bool global_droprelations= false;  // exclude relations section
-static bool global_injosm= false;
-  // input may contain apostrophes instead of quotes
 static bool global_outo5m= false;  // output shall have .o5m format
 static bool global_outo5c= false;  // output shall have .o5c format
 static bool global_outosc= false;  // output shall have .osc format
@@ -980,12 +974,6 @@ static inline bool read_input() {
       break;
           }
         read_infop->read__counter+= r;
-        if(global_injosm) {
-          byte* bp;
-
-          bp= read_bufe+r;
-          while(--bp>=read_bufe) if(*bp=='\'') *bp= '\"';
-          }
         read_bufe+= r;  // set new mark for end of data
         read_bufe[0]= 0; read_bufe[1]= 0;  // set 4 null-terminators
         read_bufe[2]= 0; read_bufe[3]= 0;
@@ -3772,9 +3760,10 @@ static bool oo__xmltag() {
   // oo__xmlheadtag: see above;
   // return: no more xml keys/vals to read inside the outer xml tag;
   // oo__xmlkey,oo__xmlval: newest xml key/val which have been read;
-  //                        ""/"": encountered the end of an
+  //                        "","": encountered the end of an
   //                               enclosed xml tag;
   char c;
+  char xmldelim;
 
   for(;;) {  // until break
     while(!oo__wsnul(*read_bufp)) read_bufp++;
@@ -3819,12 +3808,13 @@ return true;
   continue;
       }
     *read_bufp++= 0;
-    if(*read_bufp!='\"')
+    if(*read_bufp!='\"' && *read_bufp!='\'')
   continue;
+    xmldelim= (char)*read_bufp;
     oo__xmlval= (char*)(++read_bufp);
     for(;;) {
       c= *read_bufp;
-      if(c=='\"')
+      if(c==xmldelim)
     break;
       if(c==0) {
       oo__xmlkey= oo__xmlval= "";
@@ -4028,29 +4018,34 @@ return;
             sp++;
         continue;
             }
-          if((l= strzlcmp(sp,"box=\""))>0) {
+          if((l= strzlcmp(sp,"box=\""))>0 ||
+              (l= strzlcmp(sp,"box=\'"))>0) {
             sp+= l;
             c= *sp;
             }
           if((l= strzlcmp(sp,"minlat=\""))>0 ||
+              (l= strzlcmp(sp,"minlat=\'"))>0 ||
               ((isdig(c) || c=='-' || c=='.') && (bboxcomplete&2)==0)) {
             sp+= l;
             oo__bby1= oo__strtodeg(sp);
             if(oo__bby1!=oo__nildeg) bboxcomplete|= 2;
             }
           else if((l= strzlcmp(sp,"minlon=\""))>0 ||
+              (l= strzlcmp(sp,"minlon=\'"))>0 ||
               ((isdig(c) || c=='-' || c=='.') && (bboxcomplete&1)==0)) {
             sp+= l;
             oo__bbx1= oo__strtodeg(sp);
             if(oo__bbx1!=oo__nildeg) bboxcomplete|= 1;
             }
           else if((l= strzlcmp(sp,"maxlat=\""))>0 ||
+              (l= strzlcmp(sp,"maxlat=\'"))>0 ||
               ((isdig(c) || c=='-' || c=='.') && (bboxcomplete&8)==0)) {
             sp+= l;
             oo__bby2= oo__strtodeg(sp);
             if(oo__bby2!=oo__nildeg) bboxcomplete|= 8;
             }
           else if((l= strzlcmp(sp,"maxlon=\""))>0 ||
+              (l= strzlcmp(sp,"maxlon=\'"))>0 ||
               ((isdig(c) || c=='-' || c=='.') && (bboxcomplete&4)==0)) {
             sp+= l;
             oo__bbx2= oo__strtodeg(sp);
@@ -5039,8 +5034,8 @@ return 0;
   continue;  // take next parameter
       }
     if(strcmp(argv[0],"--in-josm")==0) {
-        // user wants input in JOSM format to be accepted format
-      global_injosm= true;
+      // deprecated;
+      // this option is still accepted for compatibility reasons;
   continue;  // take next parameter
       }
     if(strcmp(a,"--out-o5m")==0 ||
