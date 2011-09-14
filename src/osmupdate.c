@@ -1,6 +1,6 @@
-// osmupdate 2011-09-05 15:50
-#define VERSION "0.0W"
-// (c) 2011, Markus Weber, Nuernberg
+// osmupdate 2011-09-14 09:20
+#define VERSION "0.1"
+// (c) 2011 Markus Weber, Nuernberg
 //
 // This program is free software; you can redistribute it and/or
 // modify it under the terms of the GNU Affero General Public License
@@ -1445,13 +1445,14 @@ return 1;
 
   // clear last hourly timestamp if
   // OSM old file's timestamp > latest hourly timestamp - 30 minutes
-  if(old_timestamp>hourly_timestamp-30*60)
-    hourly_timestamp= 0;
+  if(old_timestamp>hourly_timestamp-30*60 && !no_minutely)
+    hourly_timestamp= 0;  // (let's take minutely updates)
 
   // clear last daily timestamp if
   // OSM file timestamp > latest daily timestamp - 16 hours
-  if(old_timestamp>daily_timestamp-16*3600)
-    daily_timestamp= 0;
+  if(old_timestamp>daily_timestamp-16*3600 &&
+      !(no_hourly && no_minutely))
+    daily_timestamp= 0;  // (let's take hourly and minutely updates)
 
   // initialize start timestamp
   timestamp= 0;
