@@ -1,5 +1,5 @@
-// osmconvert 2011-09-11 07:30
-#define VERSION "0.3"
+// osmconvert 2011-09-18 18:00
+#define VERSION "0.3C"
 // (c) 2011 Markus Weber, Nuernberg
 //
 // compile this source with option -lz
@@ -5558,7 +5558,7 @@ static bool oo_open(const char* filename) {
   if(oo__ife>=oo__ifee) {
     fprintf(stderr,"osmconvert Error: too many input files.\n");
     fprintf(stderr,"osmconvert Error: too many input files: %d>%d\n",
-      oo__ife-oo__if,global_fileM);
+      (int)(oo__ife-oo__if),global_fileM);
 return 2;
     }
   if(read_open(filename)!=0)
@@ -6072,7 +6072,7 @@ return 23;
                 diffdifference= true;
               if(*refidc!=(oo__ifp->o5rid[rt]+= ri))
                 diffdifference= true;
-              if(strcmp(*refrolec,rr)!=0)
+              if(refrolec>=refrolee || strcmp(*refrolec,rr)!=0)
                 diffdifference= true;
               reftypec++;
               refidc++;
@@ -6086,7 +6086,7 @@ return 23;
 
             k= v= "";
             str_read(&bufp,&k,&v);
-            if(strcmp(k,*keyc)!=0 || strcmp(v,*valc)!=0)
+            if(keyc>=keye || strcmp(k,*keyc)!=0 || strcmp(v,*valc)!=0)
               diffdifference= true;
             keyc++; valc++;
             }
