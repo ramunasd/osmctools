@@ -1,5 +1,5 @@
-// osmupdate 2011-09-14 09:20
-#define VERSION "0.1"
+// osmupdate 2011-09-30 18:50
+#define VERSION "0.1A"
 // (c) 2011 Markus Weber, Nuernberg
 //
 // This program is free software; you can redistribute it and/or
@@ -1308,14 +1308,14 @@ return 1;
         *osmconvert_arguments_p++= '\"';
         osmconvert_arguments_p= stpesccpy(osmconvert_arguments_p,a);
         *osmconvert_arguments_p++= '\"';
-        *osmconvert_arguments_p++= 0;
+        *osmconvert_arguments_p= 0;
         }
       *final_osmconvert_arguments_p++= ' ';
       *final_osmconvert_arguments_p++= '\"';
       final_osmconvert_arguments_p=
         stpesccpy(final_osmconvert_arguments_p,a);
       *final_osmconvert_arguments_p++= '\"';
-      *final_osmconvert_arguments_p++= 0;
+      *final_osmconvert_arguments_p= 0;
   continue;  // take next parameter
       }
     if(old_timestamp==0) {
