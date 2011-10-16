@@ -1,5 +1,5 @@
-// osmupdate 2011-09-30 18:50
-#define VERSION "0.1A"
+// osmupdate 2011-10-16 20:50
+#define VERSION "0.2"
 // (c) 2011 Markus Weber, Nuernberg
 //
 // This program is free software; you can redistribute it and/or
@@ -18,12 +18,8 @@
 const char* helptext=
 "\nosmupdate " VERSION "\n"
 "\n"
-"THIS PROGRAM IS FOR EXPERIMENTAL USE ONLY.\n"
-"PLEASE EXPECT MALFUNCTION AND DATA LOSS.\n"
-"SAVE YOUR DATA BEFORE STARTING THIS PROGRAM.\n"
-"\n"
-"This program cares about updating an .osm or .o5m file. It will\n"
-"download and apply OSM Change files (.osc) from the servers of\n"
+"This program cares about updating an .osm, .o5m or .pbf file. It\n"
+"will download and apply OSM Change files (.osc) from the servers of\n"
 "\"planet.openstreetmap.org\".\n"
 "It also can assemble a new .osc or .o5c file which can be used to\n"
 "update your OSM data file at a later time.\n"
@@ -57,6 +53,7 @@ const char* helptext=
 "Usage Examples\n"
 "\n"
 "  ./osmupdate old_file.o5m new_file.o5m\n"
+"  ./osmupdate old_file.pbf new_file.pbf\n"
 "  ./osmupdate old_file.osm new_file.osm\n"
 "        The old OSM data will be updated and written as new_file.o5m\n"
 "        or new_file.o5m. For safety reasons osmupdate will not delete\n"
@@ -139,8 +136,8 @@ const char* helptext=
 "        If -v resp. --verbose is the first parameter in the line,\n"
 "        osmupdate will display all input parameters.\n"
 "\n"
-"Presently, this program is in an experimental state. Please expect\n"
-"errors and do not use the program in productive or commercial systems.\n"
+"This program is for experimental use. Expect malfunctions and data\n"
+"loss. Do not use the program in productive or commercial systems.\n"
 "\n"
 "There is NO WARRANTY, to the extent permitted by law.\n"
 "Please send any bug reports to markus.weber@gmx.com\n\n";
@@ -1139,6 +1136,7 @@ int main(int argc,const char** argv) {
   int64_t old_timestamp;  // timestamp of the old OSM file
   const char* new_file;  // name of the new OSM file or OSM Change file
   bool new_file_is_o5;  // the new file is type .o5m or .o5c
+  bool new_file_is_pbf;  // the new file is type .pbf
   bool new_file_is_changefile;  // the new file is a changefile
   bool new_file_is_gz;  // the new file is a gzip compressed
   int64_t max_update_range;  // maximum range for cumulating changefiles
@@ -1185,6 +1183,7 @@ int main(int argc,const char** argv) {
   old_timestamp= 0;
   new_file= NULL;
   new_file_is_o5= false;
+  new_file_is_pbf= false;
   new_file_is_changefile= false;
   new_file_is_gz= false;
   max_update_range= 48*86400;  // less than 50 days
@@ -1334,6 +1333,8 @@ return 1;
         strycmp(new_file,".o5m")==0 || strycmp(new_file,".o5c")==0 ||
         strycmp(new_file,".o5m.gz")==0 ||
         strycmp(new_file,".o5c.gz")==0;
+      new_file_is_pbf=
+        strycmp(new_file,".pbf")==0;
       new_file_is_changefile=
         strycmp(new_file,".osc")==0 || strycmp(new_file,".o5c")==0 ||
         strycmp(new_file,".osc.gz")==0 ||
@@ -1596,7 +1597,12 @@ return 21;
           }
         }  // compressed
       else {  // uncompressed
-        if(new_file_is_o5) {  // .o5m
+        if(new_file_is_pbf) {  // .pbf
+          stecpy(&command_p,command_e,"\" --out-pbf >\"");
+          steesccpy(&command_p,command_e,new_file);
+          stecpy(&command_p,command_e,"\"");
+          }
+        else if(new_file_is_o5) {  // .o5m
           stecpy(&command_p,command_e,"\" --out-o5m >\"");
           steesccpy(&command_p,command_e,new_file);
           stecpy(&command_p,command_e,"\"");
