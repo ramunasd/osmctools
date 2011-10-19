@@ -1,5 +1,5 @@
-// osmupdate 2011-10-16 20:50
-#define VERSION "0.2"
+// osmupdate 2011-10-18 18:40
+#define VERSION "0.2A"
 // (c) 2011 Markus Weber, Nuernberg
 //
 // This program is free software; you can redistribute it and/or
@@ -128,6 +128,11 @@ const char* helptext=
 "--compression-level=LEVEL\n"
 "        Define level for gzip compression. Values between 1 (low\n"
 "        compression, but fast) and 9 (high compression, but slow).\n"
+"\n"
+"--planet-url=PLANET_URL\n"
+"        To accelerate downloads you may specify an alternative\n"
+"        download location. Please enter its URL, or simply the word\n"
+"        \"mirror\" if you want to use gwdg's planet server.\n"
 "\n"
 "-v\n"
 "--verbose\n"
@@ -424,25 +429,6 @@ static inline char* uint32toa(uint32_t v,char* s) {
   return s;
   }  // end   uint32toa()
 
-#if 0
-static char original_timezone_none;  // no time zone
-static char* original_timezone=&original_timezone_none;
-  // original value of time zone
-
-static void restore_timezone() {
-  //restore original value of time zone;
-  if(original_timezone!=&original_timezone_none) {
-      // time zone must be restored
-    char s[256];
-
-    snprintf(s,sizeof(s),"TZ=%s",original_timezone);
-    putenv(s);
-    tzset();
-    original_timezone= &original_timezone_none;
-    }  // time zone must be restored
-  }  // restore_timezone
-#endif
-
 static inline int64_t strtimetosint64(const char* s) {
   // read a timestamp in OSM format, e.g.: "2010-09-30T19:23:30Z",
   // and convert it to a signed 64-bit integer;
@@ -479,15 +465,6 @@ return 0;
     tm.tm_min= (s[14]-'0')*10+s[15]-'0';
     tm.tm_sec= (s[17]-'0')*10+s[18]-'0';
     #if __WIN32__
-    // use replcement for timegm() because Windows does not know it
-      #if 0
-      if(original_timezone==&original_timezone_none) {
-        original_timezone= getenv("TZ");
-        putenv("TZ=");
-        tzset();
-        }
-      #endif
-    //DPv(timezone %lli,timezone)
 return mktime(&tm)-timezone;
     #else
 return timegm(&tm);
@@ -607,6 +584,8 @@ static int global_max_merge= 7;
   // maximum number of parallely processed changefiles
 static const char* global_gzip_parameters= "";
   // parameters for gzip compression
+static char global_planet_url[400]=
+  "http://planet.openstreetmap.org/";
 
 #define PERR(f) \
   fprintf(stderr,"osmupdate Error: " f "\n");
@@ -750,7 +729,8 @@ static int64_t get_newest_changefile_timestamp(
   #endif
   command_p= command;
   stecpy(&command_p,command_e,
-    "wget -q http://planet.openstreetmap.org/");
+    "wget -q ");
+  stecpy(&command_p,command_e,global_planet_url);
   switch(changefile_type) {  // changefile type
   case cft_MINUTELY:
     stecpy(&command_p,command_e,"minute-replicate/state.txt");
@@ -870,12 +850,12 @@ static int64_t get_changefile_timestamp(
     if(file_length(timestamp_cachefile_name)<10) {
         // timestamp has not been downloaded yet
       command_p= command;
+      stecpy(&command_p,command_e,"wget -nv -c ");
+      stecpy(&command_p,command_e,global_planet_url);
       if(changefile_type==cft_MINUTELY)
-        stecpy(&command_p,command_e,"wget -nv -c "
-          "http://planet.openstreetmap.org/minute-replicate/");
+        stecpy(&command_p,command_e,"minute-replicate/");
       else if(changefile_type==cft_HOURLY)
-        stecpy(&command_p,command_e,"wget -nv -c "
-          "http://planet.openstreetmap.org/hour-replicate/");
+        stecpy(&command_p,command_e,"hour-replicate/");
       else  // invalid change file type
         return 0;
       /* assemble Sequence path */ {
@@ -1011,18 +991,16 @@ static void process_changefile(
         CFTNAME(changefile_type),file_sequence_number)
     command_p= command;
     stecpy(&command_p,command_e,"wget -nv -c ");
+    stecpy(&command_p,command_e,global_planet_url);
     switch(changefile_type) {  // changefile type
     case cft_MINUTELY:
-      stecpy(&command_p,command_e,
-        "http://planet.openstreetmap.org/minute-replicate/");
+      stecpy(&command_p,command_e,"minute-replicate/");
       break;
     case cft_HOURLY:
-      stecpy(&command_p,command_e,
-        "http://planet.openstreetmap.org/hour-replicate/");
+      stecpy(&command_p,command_e,"hour-replicate/");
       break;
     case cft_DAILY:
-      stecpy(&command_p,command_e,
-        "http://planet.openstreetmap.org/daily/");
+      stecpy(&command_p,command_e,"daily/");
       break;
     default:  // invalid change file type
       return;
@@ -1286,6 +1264,26 @@ return 0;
       }
     if(strzcmp(a,"--daily")==0) {  // process daily data
       process_daily= true;
+  continue;  // take next parameter
+      }
+    if(strzcmp(a,"--planet-url=")==0 && a[13]!=0) {
+        // change planet url
+      const char* ap;
+      char* sp;
+
+      ap= a+13;
+      if(strcmp(ap,"mirror")==0)
+        strcpy(global_planet_url,"ftp://ftp5.gwdg.de/pub/misc/"
+          "openstreetmap/planet.openstreetmap.org/");
+      else if(strstr(ap,"://")!=NULL)
+        strmcpy(global_planet_url,ap,sizeof(global_planet_url)-1);
+      else {
+        strcpy(global_planet_url,"http://");
+        strmcpy(global_planet_url+7,ap,sizeof(global_planet_url)-8);
+        }
+      sp= strchr(global_planet_url,0);
+      if(sp>global_planet_url && sp[-1]!='/') {
+        *sp++= '/'; sp= 0; }
   continue;  // take next parameter
       }
     if(a[0]=='-') {

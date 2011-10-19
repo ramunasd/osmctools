@@ -1,5 +1,5 @@
-// osmfilter 2011-09-11 07:30
-#define VERSION "1.1"
+// osmfilter 2011-10-19 23:10
+#define VERSION "1.1A"
 // (c) 2011 Markus Weber, Nuernberg
 //
 // This program is free software; you can redistribute it and/or
@@ -2348,8 +2348,10 @@ return 0;
       }
     }
   p0= o5__bufp;
-  if(v<0)
-    u= (((uint64_t)(-v))<<1)-1;
+  if(v<0) {
+    u= -v;
+    u= (u<<1)-1;
+    }
   else
     u= v<<1;
   frac= u&0x7f;
@@ -2383,8 +2385,10 @@ return 0;
       }
     }
   p0= o5__bufp;
-  if(v<0)
-    u= (((uint64_t)(-v))<<1)-1;
+  if(v<0) {
+    u= -v;
+    u= (u<<1)-1;
+    }
   else
     u= v<<1;
   frac= u&0x7f;

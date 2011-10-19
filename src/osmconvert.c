@@ -1,5 +1,5 @@
-// osmconvert 2011-10-16 20:50
-#define VERSION "0.4"
+// osmconvert 2011-10-19 17:00
+#define VERSION "0.4E"
 // (c) 2011 Markus Weber, Nuernberg
 //
 // compile this source with option -lz
@@ -54,6 +54,7 @@ const char* shorthelptext=
 "--out-timestamp           output the file\'s timestamp, nothing else\n"
 "--out-statistics          write statistics, nothing else\n"
 "--statistics              write statistics to stderr\n"
+"-o=<outfile>              reroute standard output to a file\n"
 "-t=<tempfile>             define tempfile prefix\n"
 "-v                        activate verbose mode\n";
 const char* helptext=
@@ -208,12 +209,15 @@ const char* helptext=
 "        Same as --statistics, but the statistical data will be\n"
 "        written to standard output.\n"
 "\n"
+"-o=<outfile>\n"
+"        Standard output will be rerouted to the specified file.\n"
+"\n"
 "-t=<tempfile>\n"
 "        If borders are to be applied or broken references to be\n"
 "        eliminated, osmconvert creates and uses two temporary files.\n"
 "        This parameter defines their name prefix. The default value\n"
 "        is \"osmconvert_tempfile\".\n"
-"        \n"
+"\n"
 "-v\n"
 "        With activated \'verbose\' mode, some statistical and\n"
 "        diagnosis data will be displayed.\n"
@@ -349,6 +353,7 @@ static bool global_dropways= false;  // exclude ways section
 static bool global_droprelations= false;  // exclude relations section
 static bool global_outo5m= false;  // output shall have .o5m format
 static bool global_outo5c= false;  // output shall have .o5c format
+static bool global_outosm= false;  // output shall have .osm format
 static bool global_outosc= false;  // output shall have .osc format
 static bool global_outosh= false;  // output shall have .osh format
 static bool global_outpbf= false;  // output shall have .pbf format
@@ -497,6 +502,32 @@ static inline int strzlcmp(const char* s1,const char* s2) {
     return s2-s2a;
   return 0;
   }  // end   strzlcmp()
+
+static inline int strycmp(const char* s1,const char* s2) {
+  // similar to strcmp(), this procedure compares two character strings;
+  // here, both strings are end-aligned;
+  // not more characters will be compared than are existing in string s2;
+  // i.e., this procedure can be used to identify a file name extension;
+  const char* s1e;
+  int l;
+
+  l= strchr(s2,0)-s2;
+  s1e= strchr(s1,0);
+  if(s1e-s1<l)
+return 1;
+  s1= s1e-l;
+  while(*s1==*s2 && *s1!=0) { s1++; s2++; }
+  if(*s2==0)
+    return 0;
+  return *(unsigned char*)s1 < *(unsigned char*)s2? -1: 1;
+  }  // end   strycmp()
+
+static inline bool file_exists(const char* file_name) {
+  // query if a file exists;
+  // file_name[]: name of the file in question;
+  // return: the file exists;
+  return access(file_name,R_OK)==0;
+  }  // file_exists()
 
 
 
@@ -1542,11 +1573,16 @@ static inline uint64_t read_count() {
 
 static const char* write__filename= NULL;
   // last name of the file; ==NULL: standard output;
+static const char* write__filename_standard= NULL;
+  // name of standard output file; ==NULL: standard output;
+static const char* write__filename_temp= NULL;
+  // name of the tempfile; ==NULL: no tempfile;
 static char write__buf[UINT64_C(16000000)];
 static char* write__bufe= write__buf+sizeof(write__buf);
   // (const) water mark for buffer filled 100%
 static char* write__bufp= write__buf;
 static int write__fd= 1;  // (initially standard output)
+static int write__fd_standard= 1;  // (initially standard output)
 static inline void write_flush();
 
 static void write__close() {
@@ -1558,14 +1594,19 @@ static void write__close() {
     close(write__fd);
     write__fd= 1;
     }
-  }  // end   read__close()
+  }  // end   write__close()
 
 static void write__end() {
   // terminate the services of this module;
-  write__close();
-  if(loglevel<2) if(write__filename!=NULL) unlink(write__filename);
-    // real output will be written via standard output; if the written
-    // file has a name, we assume that it was just a temporary file;
+  if(write__fd>1)
+    write__close();
+  if(write__fd_standard>1) {
+    write__fd= write__fd_standard;
+    write__close();
+    write__fd_standard= 0;
+    }
+  if(loglevel<2)
+    if(write__filename_temp!=NULL) unlink(write__filename_temp);
   }  // end   read__end()
 
 //------------------------------------------------------------
@@ -1581,38 +1622,73 @@ static inline void write_flush() {
   write__bufp= write__buf;
   }  // end   write_flush();
 
+static int write_open(const char* filename) {
+  // open standard output file;
+  // filename: name of the output file;
+  //           this string must be accessible until program end;
+  //           ==NULL: standard output;
+  // this procedure must be called before any output is done;
+  // return: 0: OK; !=0: error;
+  static bool firstrun= true;
+
+  if(loglevel>=2)
+    fprintf(stderr,"Write-opening: %s\n",
+      filename==NULL? "stdout": filename);
+  if(filename!=NULL) {  // not standard output
+    write__fd= open(filename,
+      O_WRONLY|O_CREAT|O_TRUNC|O_BINARY,00600);
+    if(write__fd<1) {
+      fprintf(stderr,
+        "osmconvert Error: could not open output file: %.80s\n",
+          filename);
+      write__fd= 1;
+return 1;
+      }
+    write__fd_standard= write__fd;
+    write__filename_standard= filename;
+    }
+  if(firstrun) {
+    firstrun= false;
+    (void)atexit(write__end);
+    }
+  return 0;
+  }  // end   write_open()
+
 static int write_newfile(const char* filename) {
   // change to another (temporary) output file;
   // filename: new name of the output file;
   //           this string must be accessible until program end
   //           because the name will be needed to delete the file;
-  //           ==NULL: standard output;
+  //           ==NULL: change back to standard output file;
   // the previous output file is closed by this procedure, unless
   // it is standard output;
   // return: 0: OK; !=0: error;
-  static bool firstrun= true;
-
-  write__close();
   if(loglevel>=2)
     fprintf(stderr,"Write-opening: %s\n",
       filename==NULL? "stdout": filename);
-  if(filename==NULL)  // we are to write to standard output
-    write__fd= 1;
-  else {  // real file shall be opened
+  if(filename==NULL) {  // we are to change back to standard output file
+    if(loglevel>=2)
+      fprintf(stderr,"Write-reopening: %s\n",
+        write__filename_standard==NULL? "stdout":
+        write__filename_standard);
+    write__close();  // close temporary file
+    write__filename= write__filename_standard;
+    write__fd= write__fd_standard;
+    }
+  else {  // new temporary file shall be opened
+    if(loglevel>=2)
+      fprintf(stderr,"Write-opening: %s\n",filename);
     write__filename= filename;
     unlink(filename);
     write__fd= open(filename,O_WRONLY|O_CREAT|O_TRUNC|O_BINARY,00600);
     if(write__fd<1) {
       fprintf(stderr,
         "osmconvert Error: could not open output file: %.80s\n",
-        filename==NULL? "standard output": filename);
+        filename);
       write__fd= 1;
-return 1;
+return 2;
       }
-    }
-  if(firstrun) {
-    firstrun= false;
-    (void)atexit(write__end);
+    write__filename_temp= filename;
     }
   return 0;
   }  // end   write_newfile()
@@ -5594,6 +5670,9 @@ static void wo_start(int format,bool bboxvalid,
 return;
     }  // end   o5m
   if(wo__format<0) {  // PBF
+    if(border_active)  // borders are to be applied
+      border_querybox(&x1,&y1,&x2,&y2);
+    bboxvalid= bboxvalid || border_active;
     pw_ini();
     pw_header(bboxvalid,x1,y1,x2,y2,timestamp);
 return;
@@ -8096,6 +8175,491 @@ return 24;
 
 
 
+static bool assistant(int* argcp,char*** argvp) {
+  // interactively guide the user through basic functions;
+  // argcp==NULL: display 'bye message', do nothing else;
+  // usually, this program is called twice: first, before
+  // parsing the command line arguments, and second, after
+  // the regular processing has been done;
+  // return: user wants to terminate the program;
+  #define langM 2
+  static int lang= 0;
+  static char* talk_intro[langM]= {
+    "\n"
+    "osmconvert "VERSION"\n"
+    "\n"
+    "Converts .osm, .o5m, .pbf, .osc, .osh files, applies changes\n"
+    "of .osc, .o5c, .osh files and sets limiting borders.\n"
+    "Use command line option -h to get a parameter overview,\n"
+    "or --help to get detailed help.\n"
+    "\n"
+    "If you are familiar with the command line, press <Return>.\n"
+    "\n"
+    "If you do not know how to operate the command line, please\n"
+    "enter \"e\" (press key E and hit <Return>).\n"
+    "Falls Sie sich mit der Kommandozeile nicht auskennen, drücken\n"
+    "Sie bitte \"d\" (Taste D und dann die Eingabetaste).\n"
+    ,
+    "d"
+    };
+  static char* talk_section[langM]= {
+    "-----------------------------------------------------------------\n"
+    };
+  static char* talk_hello[langM]= {
+    "Hi, I am osmconBert - just call me Bert.\n"
+    "I will guide you through the basic functions of osmconvert.\n"
+    "\n"
+    "At first, please ensure to have the \"osmconvert\" file\n"
+    "(resp. \"osmconvert.exe\" file if Windows) located in the\n"
+    "same directory in which all your OSM data is stored.\n"
+    "\n"
+    "You may exit this program whenever you like. Just hold\n"
+    "the <Ctrl> key and press the key C.\n"
+    "\n"
+    ,
+    "Hallo, ich bin osmconBert - nennen Sie mich einfach Bert.\n"
+    "Ich werde Sie durch die Standardfunktionen von osmconvert leiten.\n"
+    "\n"
+    "Bitte stellen Sie zuerst sicher, dass sich die Programmdatei\n"
+    "\"osmconvert\" (bzw. \"osmconvert.exe\" im Fall von Windows) im\n"
+    "gleichen Verzeichnis befindet wie Ihre OSM-Dateien.\n"
+    "\n"
+    "Sie können das Programm jederzeit beenden. Halten Sie dazu die\n"
+    "<Strg>-Taste gedrückt und drücken die Taste C.\n"
+    "\n"
+    };
+  static char* talk_input_file[langM]= {
+    "Please please tell me the name of the file you want to process:\n"
+    ,
+    "Bitte nennen Sie mir den Namen der Datei, die verarbeitet werden soll:\n"
+    };
+  static char* talk_not_found[langM]= {
+    "Sorry, I cannot find a file with this name in the current directory.\n"
+    "\n"
+    ,
+    "Sorry, ich kann diese Datei im aktuellen Verzeichnis nicht finden.\n"
+    "\n"
+    };
+  static char* talk_input_file_suffix[langM]= {
+    "Sorry, the file must have \".osm\", \".o5m\" or \".pbf\" as suffix.\n"
+    "\n"
+    ,
+    "Sorry, die Datei muss \".osm\", \".o5m\" oder \".pbf\" als Endung haben.\n"
+    "\n"
+    };
+  static char* talk_thanks[langM]= {
+    "Thanks!\n"
+    ,
+    "Danke!\n"
+    };
+  static char* talk_function[langM]= {
+    "What may I do with this file?\n"
+    "\n"
+    "1  convert it to a different file format\n"
+    "2  use an OSM Changefile to update this file\n"
+    "3  use a border polygon file to limit the geographical region\n"
+    "4  use a border box to limit the geographical region\n"
+    "5  display statistics of the file\n"
+    "\n"
+    "Please enter the number of one or more functions you choose:\n"
+    ,
+    "Was soll ich mit dieser Datei tun?\n"
+    "\n"
+    "1  in ein anderes Format umwandeln\n"
+    "2  sie per OSM-Change-Datei aktualisieren\n"
+    "3  mit einer Polygon-Datei einen geografischen Bereich ausschneiden\n"
+    "4  per Längen- und Breitengrad einen Bereich ausschneiden\n"
+    "5  statistische Daten zu dieser Datei anzeigen\n"
+    "\n"
+    "Bitte wählen Sie die Nummer(n) von einer oder mehreren Funktionen:\n"
+    };
+  static char* talk_all_right[langM]= {
+    "All right.\n"
+    ,
+    "Geht in Ordnung.\n"
+    };
+  static char* talk_cannot_understand[langM]= {
+    "Sorry, I could not understand.\n"
+    "\n"
+    ,
+    "Sorry, das habe ich nicht verstanden.\n"
+    "\n"
+    };
+  static char* talk_two_borders[langM]= {
+    "Please do not choose both, border polygon and border box.\n"
+    "\n"
+    ,
+    "Bitte nicht beide Arten des Ausschneidens gleichzeitig wählen.\n"
+    "\n"
+    };
+  static char* talk_changefile[langM]= {
+    "Please tell me the name of the OSM Changefile:\n"
+    ,
+    "Bitte nennen Sie mir den Namen der OSM-Change-Datei:\n"
+    };
+  static char* talk_changefile_suffix[langM]= {
+    "Sorry, the Changefile must have \".osc\" or \".o5c\" as suffix.\n"
+    "\n"
+    ,
+    "Sorry, die Change-Datei muss \".osc\" oder \".o5c\" als Endung haben.\n"
+    "\n"
+    };
+  static char* talk_polygon_file[langM]= {
+    "Please tell me the name of the polygon file:\n"
+    ,
+    "Bitte nennen Sie mir den Namen der Polygon-Datei:\n"
+    };
+  static char* talk_polygon_file_suffix[langM]= {
+    "Sorry, the polygon file must have \".poly\" as suffix.\n"
+    "\n"
+    ,
+    "Sorry, die Polygon-Datei muss \".poly\" als Endung haben.\n"
+    "\n"
+    };
+  static char* talk_minlon[langM]= {
+    "Please tell me the minimum longitude (unit degree):\n"
+    ,
+    "Bitte nennen Sie mir den Minimum-Längengrad (in Grad):\n"
+    };
+  static char* talk_maxlon[langM]= {
+    "Please tell me the maximum longitude (unit degree):\n"
+    ,
+    "Bitte nennen Sie mir den Maximum-Längengrad (in Grad):\n"
+    };
+  static char* talk_minlat[langM]= {
+    "Please tell me the minimum latitude (unit degree):\n"
+    ,
+    "Bitte nennen Sie mir den Minimum-Breitengrad (in Grad):\n"
+    };
+  static char* talk_maxlat[langM]= {
+    "Please tell me the maximum latitude (unit degree):\n"
+    ,
+    "Bitte nennen Sie mir den Maximum-Breitengrad (in Grad):\n"
+    };
+  static char* talk_output_format[langM]= {
+    "Please choose the output file format:\n"
+    "\n"
+    "1 .osm (standard XML format - results in very large files)\n"
+    "2 .o5m (binary format - allows fast)\n"
+    "3 .pbf (standard binary format - results in small files)\n"
+    "\n"
+    "Enter 1, 2 or 3:\n"
+    ,
+    "Bitte wählen Sie das Format der Ausgabe-Datei:\n"
+    "\n"
+    "1 .osm (Standard-XML-Format - ergibt sehr große Dateien)\n"
+    "2 .o5m (binäres Format - recht schnell)\n"
+    "3 .pbf (binäres Standard-Format - ergibt kleine Dateien)\n"
+    "\n"
+    "1, 2 oder 3 eingeben:\n"
+    };
+  static char* talk_working[langM]= {
+    "Now, please hang on - I am working for you.\n"
+    "If the input file is very large, this will take several minutes.\n"
+    ,
+    "Einen Moment bitte - ich arbeite für Sie.\n"
+    "Falls die Eingabe-Datei sehr groß ist, dauert das einige Minuten.\n"
+    };
+  static char* talk_finished[langM]= {
+    "Finished!\n"
+    ,
+    "Fertig!\n"
+    };
+  static char* talk_finished_file[langM]= {
+    "I just completed your new file with this name:\n"
+    ,
+    "Soeben habe ich Ihre neue Datei mit diesem Namen fertiggestellt:\n"
+    };
+  static char* talk_bye[langM]= {
+    "\n"
+    "Thanks for visiting me. Bye!\n"
+    "Yours, Bert\n"
+    ,
+    "\n"
+    "Danke für Ihren Besuch. Tschüs!\n"
+    "Schöne Grüße - Bert\n"
+    };
+  #define DD(s) fprintf(stderr,"%s",(s[lang]));  // display text
+  #define DI(s) fgets(s,sizeof(s),stdin); \
+    if(strchr(s,'\n')!=NULL) *strchr(s,'\n')= 0;  // get user's response
+  bool
+    function_convert= false,
+    function_update= false,
+    function_border_polygon= false,
+    function_border_box= false,
+    function_statistics= false;
+  static bool function_only_statistics= false;
+  bool verbose;
+  char s[1000];  // temporary string for several purposes
+  char* sp;
+  char input_file[1000];
+  bool file_type_osm,file_type_osc,file_type_o5m,file_type_o5c,
+    file_type_pbf;
+  static char changefile[1000];
+  char polygon_file[1000];
+  char minlon[30],maxlon[30],minlat[30],maxlat[30];
+  static char output_file[1050]= "";  // the first three characters
+    // are reserved for the commandline option "-o="
+  int i;
+
+  // display 'bye message' - if requested
+  if(argcp==NULL) {
+    if(output_file[0]!=0) {
+      DD(talk_section)
+      DD(talk_finished)
+      DD(talk_finished_file)
+      fprintf(stderr,"  %s",output_file+3);
+      DD(talk_bye)
+      }
+    else if(function_only_statistics) {
+      DD(talk_section)
+      DD(talk_finished)
+      DD(talk_bye)
+      }
+return false;
+    }
+
+  // introduction
+  DD(talk_intro)
+  DI(s)
+  sp= s;
+  while(*sp==' ') sp++;  // dispose of leading spaces
+  if(*sp==0)
+return true;
+  lang= langM;
+  while(--lang>0) if(talk_intro[lang][0]==tolower(*sp)) break;
+    // select language
+  verbose= isupper(*(unsigned char*)sp);
+
+  // initialization
+  for(i= 1; i<langM; i++) {
+    talk_intro[i]= talk_intro[0];
+    talk_section[i]= talk_section[0];
+    // (first two dialog texts are the same for all languages)
+    }
+
+  // choose input file
+  DD(talk_section)
+  DD(talk_hello)
+  for(;;) {
+    DD(talk_input_file)
+    DI(input_file)
+    file_type_osm= strycmp(input_file,".osm")==0;
+    file_type_osc= strycmp(input_file,".osc")==0;
+    file_type_o5m= strycmp(input_file,".o5m")==0;
+    file_type_o5c= strycmp(input_file,".o5c")==0;
+    file_type_pbf= strycmp(input_file,".pbf")==0;
+    if(!file_type_osm && !file_type_osc && !file_type_o5m &&
+        !file_type_o5c && !file_type_pbf) {
+      DD(talk_input_file_suffix)
+  continue;
+      }
+    if(input_file[strcspn(input_file,"\"\', :;|&\\")]!=0 ||
+        !file_exists(input_file)) {
+      DD(talk_not_found)
+  continue;
+      }
+    break;
+    }
+  DD(talk_thanks)
+
+  // choose function
+  DD(talk_section)
+  for(;;) {
+    function_convert= function_update= function_border_polygon=
+      function_border_box= function_statistics= false;
+    DD(talk_function)
+    DI(s)
+    i= 0;  // here: number of selected functions
+    sp= s;
+    while(*sp!=0) {
+      if(*sp=='1')
+        function_convert= true;
+      else if(*sp=='2')
+        function_update= true;
+      else if(*sp=='3')
+        function_border_polygon= true;
+      else if(*sp=='4')
+        function_border_box= true;
+      else if(*sp=='5')
+        function_statistics= true;
+      else if(*sp==' ' || *sp==',' || *sp==';') {
+        sp++;
+    continue;
+        }
+      else {  // syntax error
+        i= 0;  // ignore previous input
+    break;
+        }
+      i++; sp++;
+      }
+    if(function_border_polygon && function_border_box) {
+      DD(talk_two_borders)
+  continue;
+      }
+    if(i==0) {  // no function has been chosen OR syntax error
+      DD(talk_cannot_understand)
+  continue;
+      }
+    break;
+    }
+  function_only_statistics= function_statistics &&
+    !function_convert && !function_update &&
+    !function_border_polygon && !function_border_box;
+  DD(talk_all_right)
+
+  // choose OSM Changefile
+  if(function_update) {
+    DD(talk_section)
+    for(;;) {
+      DD(talk_changefile)
+      DI(changefile)
+      if(strycmp(changefile,".osc")!=0 &&
+          strycmp(changefile,".o5c")!=0) {
+        DD(talk_changefile_suffix)
+    continue;
+        }
+      if(changefile[strcspn(changefile,"\"\' ,:;|&\\")]!=0 ||
+          !file_exists(changefile)) {
+        DD(talk_not_found)
+    continue;
+        }
+      break;
+      }
+    DD(talk_thanks)
+    }
+
+  // choose polygon file
+  if(function_border_polygon) {
+    DD(talk_section)
+    for(;;) {
+      DD(talk_polygon_file)
+      DI(polygon_file)
+      if(strycmp(polygon_file,".poly")!=0) {
+        DD(talk_polygon_file_suffix)
+    continue;
+        }
+      if(polygon_file[strcspn(polygon_file,"\"\' ,:;|&\\")]!=0 ||
+          !file_exists(polygon_file)) {
+        DD(talk_not_found)
+    continue;
+        }
+      break;
+      }
+    DD(talk_thanks)
+    }
+
+  // choose coordinates
+  if(function_border_box) {
+    DD(talk_section)
+    for(;;) {
+      #define D(s) DI(s) \
+        while(strchr(s,',')!=NULL) *strchr(s,',')= '.'; \
+        if(s[0]==0 || s[strspn(s,"0123456789.-")]!=0) { \
+          DD(talk_cannot_understand) continue; }
+      DD(talk_minlon)
+      D(minlon)
+      DD(talk_maxlon)
+      D(maxlon)
+      DD(talk_minlat)
+      D(minlat)
+      DD(talk_maxlat)
+      D(maxlat)
+      #undef D
+      break;
+      }
+    DD(talk_thanks)
+    }
+
+  // choose file type
+  if(function_convert) {
+    file_type_osm= file_type_osc= file_type_o5m=
+    file_type_o5c= file_type_pbf= false;
+    DD(talk_section)
+    for(;;) {
+      DD(talk_output_format)
+      DI(s)
+      sp= s; while(*sp==' ') sp++;  // ignore spaces
+      if(*sp=='1')
+        file_type_osm= true;
+      else if(*sp=='2')
+        file_type_o5m= true;
+      else if(*sp=='3')
+        file_type_pbf= true;
+      else {
+        DD(talk_cannot_understand)
+    continue;
+        }
+      break;
+      }
+    DD(talk_thanks)
+    }
+
+  // assemble output file name
+  DD(talk_section)
+  if(!function_only_statistics) {
+    if(file_type_osm) strcpy(s,".osm");
+    if(file_type_osc) strcpy(s,".osc");
+    if(file_type_o5m) strcpy(s,".o5m");
+    if(file_type_o5c) strcpy(s,".o5c");
+    if(file_type_pbf) strcpy(s,".pbf");
+    sp= stpcpy0(output_file,"-o=");
+    strcpy(sp,input_file);
+    sp= strrchr(sp,'.');
+    if(sp==NULL) sp= strchr(output_file,0);
+    i= 1;
+    do
+      sprintf(sp,"_%02i%s",i,s);
+      while(++i<9999 && file_exists(output_file+3));
+    }
+  DD(talk_working)
+  DD(talk_section)
+
+  /* create new commandline arguments */ {
+    int argc;
+    static char* argv[10];
+    static char border[1050];
+
+    argc= 0;
+    argv[argc++]= (*argvp)[0];  // save program name
+    if(verbose)
+      argv[argc++]= "-v";  // activate verbose mode
+    argv[argc++]= input_file;
+    if(function_update)
+      argv[argc++]= changefile;
+    if(function_border_polygon) {
+      sp= stpcpy0(border,"-B=");
+      strcpy(sp,polygon_file);
+      argv[argc++]= border;
+      }
+    else if(function_border_box) {
+      sprintf(border,"-b=%s,%s,%s,%s",minlon,maxlon,minlat,maxlat);
+      argv[argc++]= border;
+      }
+    if(function_only_statistics)
+      argv[argc++]= "--out-statistics";
+    else if(function_statistics)
+        argv[argc++]= "--statistics";
+    if(output_file[0]!=0) {
+      if(file_type_osm) argv[argc++]= "--out-osm";
+      else if(file_type_osc) argv[argc++]= "--out-osc";
+      else if(file_type_o5m) argv[argc++]= "--out-o5m";
+      else if(file_type_o5c) argv[argc++]= "--out-o5c";
+      else if(file_type_pbf) argv[argc++]= "--out-pbf";
+      argv[argc++]= output_file;
+      }
+    // return commandline variables
+    *argcp= argc;
+    *argvp= argv;
+    }
+  #undef langM
+  #undef DP
+  #undef DI
+  return false;
+  }  // assistant()
+
+
+
 #if !__WIN32__
 void sigcatcher(int sig) {
   fprintf(stderr,"osmconvert: Output has been terminated.\n");
@@ -8103,10 +8667,12 @@ void sigcatcher(int sig) {
   }  // end   sigchatcher()
 #endif
 
-int main(int argc,const char** argv) {
+int main(int argc,char** argv) {
   // main program;
   // for the meaning of the calling line parameters please look at the
   // contents of helptext[];
+  const char* outputfilename;  // standard output file name;
+    // ==NULL: standard output 'stdout'
   int h_n,h_w,h_r;  // user-suggested hash size in MiB, for
     // hash tables of nodes, ways, and relations;
   int r,l;
@@ -8124,6 +8690,7 @@ int main(int argc,const char** argv) {
   #endif
 
   // initializations
+  outputfilename= NULL;
   h_n= h_w= h_r= 0;
   #if __WIN32__
     setmode(fileno(stdout),O_BINARY);
@@ -8132,14 +8699,8 @@ int main(int argc,const char** argv) {
 
   // read command line parameters
   if(argc<=1) {  // no command line parameters given
-    fprintf(stderr,"osmconvert " VERSION "\n"
-      "Converts .osm, .o5m, .pbf, .osc, .osh files into .osm, .o5m,\n"
-      "o5c, .osh, .pbf files, applies changes of .osc, .o5c, .osh\n"
-      "files and sets limiting borders.\n"
-      "To get a parameter overview, please enter:  ./osmconvert -h\n"
-      "To get detailed help, please enter:  ./osmconvert --help\n");
-return 0;  // end the program, because without having parameters
-      // we do not know what to do;
+    if(assistant(&argc,&argv))  // call interactive program guide
+return 0;
     }
   while(--argc>0) {  // for every parameter in command line
     argv++;  // switch to next parameter; as the first one is just
@@ -8253,7 +8814,7 @@ return 0;
       }
     if(strcmp(a,"--out-osm")==0) {
         // user wants output in osm format
-      // this is default anyway, hence ignore this parameter
+      global_outosm= true;
   continue;  // take next parameter
       }
     if(strcmp(a,"--out-osc")==0) {
@@ -8317,6 +8878,11 @@ return 0;
       strmcpy(global_tempfilename,a+3,sizeof(global_tempfilename)-30);
   continue;  // take next parameter
       }
+    if(strzcmp(a,"-o=")==0 && a[3]!=0) {
+        // reroute standard output to a file
+      outputfilename= a+3;
+  continue;  // take next parameter
+      }
     if(strzcmp(a,"-v")==0) {
         // test mode
       if(a[2]=='=')
@@ -8370,7 +8936,7 @@ return 4;
       }
     if(strcmp(a,"-")==0) {  // use standard input
       if(oo_open(NULL))  // file cannot be read
-return 1;
+return 2;
   continue;  // take next parameter
       }
     if(a[0]=='-') {
@@ -8379,7 +8945,7 @@ return 1;
       }
     // here: parameter must be a file name
     if(oo_open(a))  // file cannot be read
-return 1;
+return 2;
     }  // end   for every parameter in command line
 
   // process parameters
@@ -8388,6 +8954,22 @@ return 1;
 return 0;  // end the program, because without having input files
       // we do not know what to do;
     }
+  if(outputfilename!=NULL && !global_outo5m &&
+      !global_outo5c && !global_outosm && !global_outosc &&
+      !global_outosh && !global_outpbf && !global_outnone &&
+      !global_outstatistics) {
+      // have output file name AND  output format not defined
+    // try to determine the output format by evaluating
+    // the file name extension
+    if(strycmp(outputfilename,".o5m")==0) global_outo5m= true;
+    else if(strycmp(outputfilename,".o5c")==0) global_outo5c= true;
+    else if(strycmp(outputfilename,".osm")==0) global_outosm= true;
+    else if(strycmp(outputfilename,".osc")==0) global_outosc= true;
+    else if(strycmp(outputfilename,".osh")==0) global_outosh= true;
+    else if(strycmp(outputfilename,".pbf")==0) global_outpbf= true;
+    }
+  if(write_open(outputfilename)!=0)
+return 3;
   if(border_active || global_dropbrokenrefs) {  // user wants borders
     int r;
 
@@ -8453,6 +9035,7 @@ return 7;
     if(r!=0)
       fprintf(stderr,"osmconvert Exit: %i\n",r);
     }  // verbose mode
+  assistant(NULL,NULL);
   return r;
   }  // end   main()
 
