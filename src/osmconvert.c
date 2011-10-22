@@ -1,5 +1,5 @@
-// osmconvert 2011-10-19 17:00
-#define VERSION "0.4E"
+// osmconvert 2011-10-22 18:10
+#define VERSION "0.4J"
 // (c) 2011 Markus Weber, Nuernberg
 //
 // compile this source with option -lz
@@ -2861,8 +2861,14 @@ static int pb_input() {
               pb_hisver= 0;
             else if((hiscomplete&24)!=24)  // no user information
               pb_hisuid= 0;
-            if((complete & 113)==113) {  // minimum contents available
-                // have at least id and refs (1|16|32|64)
+            #if 1
+            if((complete & 1)==1) {  // minimum contents available (id)
+            #else
+            if((complete & 113)==113 ||
+                (complete & 7)==7) {  // minimum contents available
+                // have at least id and refs (1|16|32|64) OR
+                // have at least id and keyval (1|2|4)
+            #endif
               relcomplete= true;
               goto mainloop;
               }
@@ -8197,7 +8203,7 @@ static bool assistant(int* argcp,char*** argvp) {
     "\n"
     "If you do not know how to operate the command line, please\n"
     "enter \"e\" (press key E and hit <Return>).\n"
-    "Falls Sie sich mit der Kommandozeile nicht auskennen, drücken\n"
+    "Falls Sie sich mit der Kommandozeile nicht auskennen, druecken\n"
     "Sie bitte \"d\" (Taste D und dann die Eingabetaste).\n"
     ,
     "d"
@@ -8224,8 +8230,8 @@ static bool assistant(int* argcp,char*** argvp) {
     "\"osmconvert\" (bzw. \"osmconvert.exe\" im Fall von Windows) im\n"
     "gleichen Verzeichnis befindet wie Ihre OSM-Dateien.\n"
     "\n"
-    "Sie können das Programm jederzeit beenden. Halten Sie dazu die\n"
-    "<Strg>-Taste gedrückt und drücken die Taste C.\n"
+    "Sie koennen das Programm jederzeit beenden. Halten Sie dazu die\n"
+    "<Strg>-Taste gedrueckt und druecken die Taste C.\n"
     "\n"
     };
   static char* talk_input_file[langM]= {
@@ -8268,10 +8274,10 @@ static bool assistant(int* argcp,char*** argvp) {
     "1  in ein anderes Format umwandeln\n"
     "2  sie per OSM-Change-Datei aktualisieren\n"
     "3  mit einer Polygon-Datei einen geografischen Bereich ausschneiden\n"
-    "4  per Längen- und Breitengrad einen Bereich ausschneiden\n"
+    "4  per Laengen- und Breitengrad einen Bereich ausschneiden\n"
     "5  statistische Daten zu dieser Datei anzeigen\n"
     "\n"
-    "Bitte wählen Sie die Nummer(n) von einer oder mehreren Funktionen:\n"
+    "Bitte waehlen Sie die Nummer(n) von einer oder mehreren Funktionen:\n"
     };
   static char* talk_all_right[langM]= {
     "All right.\n"
@@ -8289,7 +8295,7 @@ static bool assistant(int* argcp,char*** argvp) {
     "Please do not choose both, border polygon and border box.\n"
     "\n"
     ,
-    "Bitte nicht beide Arten des Ausschneidens gleichzeitig wählen.\n"
+    "Bitte nicht beide Arten des Ausschneidens gleichzeitig waehlen.\n"
     "\n"
     };
   static char* talk_changefile[langM]= {
@@ -8319,12 +8325,12 @@ static bool assistant(int* argcp,char*** argvp) {
   static char* talk_minlon[langM]= {
     "Please tell me the minimum longitude (unit degree):\n"
     ,
-    "Bitte nennen Sie mir den Minimum-Längengrad (in Grad):\n"
+    "Bitte nennen Sie mir den Minimum-Laengengrad (in Grad):\n"
     };
   static char* talk_maxlon[langM]= {
     "Please tell me the maximum longitude (unit degree):\n"
     ,
-    "Bitte nennen Sie mir den Maximum-Längengrad (in Grad):\n"
+    "Bitte nennen Sie mir den Maximum-Laengengrad (in Grad):\n"
     };
   static char* talk_minlat[langM]= {
     "Please tell me the minimum latitude (unit degree):\n"
@@ -8345,11 +8351,11 @@ static bool assistant(int* argcp,char*** argvp) {
     "\n"
     "Enter 1, 2 or 3:\n"
     ,
-    "Bitte wählen Sie das Format der Ausgabe-Datei:\n"
+    "Bitte waehlen Sie das Format der Ausgabe-Datei:\n"
     "\n"
-    "1 .osm (Standard-XML-Format - ergibt sehr große Dateien)\n"
-    "2 .o5m (binäres Format - recht schnell)\n"
-    "3 .pbf (binäres Standard-Format - ergibt kleine Dateien)\n"
+    "1 .osm (Standard-XML-Format - ergibt sehr grosse Dateien)\n"
+    "2 .o5m (binaeres Format - recht schnell)\n"
+    "3 .pbf (binaeres Standard-Format - ergibt kleine Dateien)\n"
     "\n"
     "1, 2 oder 3 eingeben:\n"
     };
@@ -8357,8 +8363,8 @@ static bool assistant(int* argcp,char*** argvp) {
     "Now, please hang on - I am working for you.\n"
     "If the input file is very large, this will take several minutes.\n"
     ,
-    "Einen Moment bitte - ich arbeite für Sie.\n"
-    "Falls die Eingabe-Datei sehr groß ist, dauert das einige Minuten.\n"
+    "Einen Moment bitte - ich arbeite fuer Sie.\n"
+    "Falls die Eingabe-Datei sehr gross ist, dauert das einige Minuten.\n"
     };
   static char* talk_finished[langM]= {
     "Finished!\n"
@@ -8376,11 +8382,12 @@ static bool assistant(int* argcp,char*** argvp) {
     "Yours, Bert\n"
     ,
     "\n"
-    "Danke für Ihren Besuch. Tschüs!\n"
-    "Schöne Grüße - Bert\n"
+    "Danke fuer Ihren Besuch. Tschues!\n"
+    "Schoene Gruesse - Bert\n"
     };
   #define DD(s) fprintf(stderr,"%s",(s[lang]));  // display text
   #define DI(s) fgets(s,sizeof(s),stdin); \
+    if(strchr(s,'\r')!=NULL) *strchr(s,'\r')= 0; \
     if(strchr(s,'\n')!=NULL) *strchr(s,'\n')= 0;  // get user's response
   bool
     function_convert= false,
@@ -8390,15 +8397,15 @@ static bool assistant(int* argcp,char*** argvp) {
     function_statistics= false;
   static bool function_only_statistics= false;
   bool verbose;
-  char s[1000];  // temporary string for several purposes
+  char s[500];  // temporary string for several purposes
   char* sp;
-  char input_file[1000];
+  char input_file[500];
   bool file_type_osm,file_type_osc,file_type_o5m,file_type_o5c,
     file_type_pbf;
-  static char changefile[1000];
-  char polygon_file[1000];
+  static char changefile[500];
+  char polygon_file[500];
   char minlon[30],maxlon[30],minlat[30],maxlat[30];
-  static char output_file[1050]= "";  // the first three characters
+  static char output_file[550]= "";  // the first three characters
     // are reserved for the commandline option "-o="
   int i;
 
@@ -8618,7 +8625,7 @@ return true;
   /* create new commandline arguments */ {
     int argc;
     static char* argv[10];
-    static char border[1050];
+    static char border[550];
 
     argc= 0;
     argv[argc++]= (*argvp)[0];  // save program name
