@@ -1,5 +1,5 @@
-// osmconvert 2011-10-22 18:10
-#define VERSION "0.4J"
+// osmconvert 2011-10-23 16:00
+#define VERSION "0.4K"
 // (c) 2011 Markus Weber, Nuernberg
 //
 // compile this source with option -lz
@@ -295,6 +295,7 @@ const char* helptext=
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include <locale.h>
 #include <time.h>
 #include <ctype.h>
 #include <unistd.h>
@@ -8190,7 +8191,12 @@ static bool assistant(int* argcp,char*** argvp) {
   // return: user wants to terminate the program;
   #define langM 2
   static int lang= 0;
-  static char* talk_intro[langM]= {
+  static const char* talk_lang1[langM]= { "", "de_" };
+  static const char* talk_lang2[langM]= { "", "German_" };
+  static const char* talk_section[langM]= {
+    "-----------------------------------------------------------------\n"
+    };
+  static const char* talk_intro[langM]= {
     "\n"
     "osmconvert "VERSION"\n"
     "\n"
@@ -8202,16 +8208,24 @@ static bool assistant(int* argcp,char*** argvp) {
     "If you are familiar with the command line, press <Return>.\n"
     "\n"
     "If you do not know how to operate the command line, please\n"
-    "enter \"e\" (press key E and hit <Return>).\n"
-    "Falls Sie sich mit der Kommandozeile nicht auskennen, druecken\n"
-    "Sie bitte \"d\" (Taste D und dann die Eingabetaste).\n"
+    "enter \"a\" (press key E and hit <Return>).\n"
     ,
-    "d"
+    "\n"
+    "osmconvert "VERSION"\n"
+    "\n"
+    "Konvertiert .osm-, .o5m-, .pbf-, .osc- und .osh-Dateien,\n"
+    "spielt Updates von .osc-, .o5c- und .osh-Dateien ein und\n"
+    "setzt geografische Grenzen.\n"
+    "Die Kommandozeilenoption -h zeigt eine Parameteruebersicht,\n"
+    "--help bringt eine detaillierte Hilfe (in Englisch).\n"
+    "\n"
+    "Wenn Sie mit der Kommandozeile vertraut sind, druecken Sie\n"
+    "bitte <Return>.\n"
+    "\n"
+    "Falls Sie sich mit der Kommandozeile nicht auskennen, druecken\n"
+    "Sie bitte \"a\" (Taste A und dann die Eingabetaste).\n"
     };
-  static char* talk_section[langM]= {
-    "-----------------------------------------------------------------\n"
-    };
-  static char* talk_hello[langM]= {
+  static const char* talk_hello[langM]= {
     "Hi, I am osmconBert - just call me Bert.\n"
     "I will guide you through the basic functions of osmconvert.\n"
     "\n"
@@ -8234,31 +8248,31 @@ static bool assistant(int* argcp,char*** argvp) {
     "<Strg>-Taste gedrueckt und druecken die Taste C.\n"
     "\n"
     };
-  static char* talk_input_file[langM]= {
+  static const char* talk_input_file[langM]= {
     "Please please tell me the name of the file you want to process:\n"
     ,
     "Bitte nennen Sie mir den Namen der Datei, die verarbeitet werden soll:\n"
     };
-  static char* talk_not_found[langM]= {
+  static const char* talk_not_found[langM]= {
     "Sorry, I cannot find a file with this name in the current directory.\n"
     "\n"
     ,
     "Sorry, ich kann diese Datei im aktuellen Verzeichnis nicht finden.\n"
     "\n"
     };
-  static char* talk_input_file_suffix[langM]= {
+  static const char* talk_input_file_suffix[langM]= {
     "Sorry, the file must have \".osm\", \".o5m\" or \".pbf\" as suffix.\n"
     "\n"
     ,
     "Sorry, die Datei muss \".osm\", \".o5m\" oder \".pbf\" als Endung haben.\n"
     "\n"
     };
-  static char* talk_thanks[langM]= {
+  static const char* talk_thanks[langM]= {
     "Thanks!\n"
     ,
     "Danke!\n"
     };
-  static char* talk_function[langM]= {
+  static const char* talk_function[langM]= {
     "What may I do with this file?\n"
     "\n"
     "1  convert it to a different file format\n"
@@ -8279,70 +8293,70 @@ static bool assistant(int* argcp,char*** argvp) {
     "\n"
     "Bitte waehlen Sie die Nummer(n) von einer oder mehreren Funktionen:\n"
     };
-  static char* talk_all_right[langM]= {
+  static const char* talk_all_right[langM]= {
     "All right.\n"
     ,
     "Geht in Ordnung.\n"
     };
-  static char* talk_cannot_understand[langM]= {
+  static const char* talk_cannot_understand[langM]= {
     "Sorry, I could not understand.\n"
     "\n"
     ,
     "Sorry, das habe ich nicht verstanden.\n"
     "\n"
     };
-  static char* talk_two_borders[langM]= {
+  static const char* talk_two_borders[langM]= {
     "Please do not choose both, border polygon and border box.\n"
     "\n"
     ,
     "Bitte nicht beide Arten des Ausschneidens gleichzeitig waehlen.\n"
     "\n"
     };
-  static char* talk_changefile[langM]= {
+  static const char* talk_changefile[langM]= {
     "Please tell me the name of the OSM Changefile:\n"
     ,
     "Bitte nennen Sie mir den Namen der OSM-Change-Datei:\n"
     };
-  static char* talk_changefile_suffix[langM]= {
+  static const char* talk_changefile_suffix[langM]= {
     "Sorry, the Changefile must have \".osc\" or \".o5c\" as suffix.\n"
     "\n"
     ,
     "Sorry, die Change-Datei muss \".osc\" oder \".o5c\" als Endung haben.\n"
     "\n"
     };
-  static char* talk_polygon_file[langM]= {
+  static const char* talk_polygon_file[langM]= {
     "Please tell me the name of the polygon file:\n"
     ,
     "Bitte nennen Sie mir den Namen der Polygon-Datei:\n"
     };
-  static char* talk_polygon_file_suffix[langM]= {
+  static const char* talk_polygon_file_suffix[langM]= {
     "Sorry, the polygon file must have \".poly\" as suffix.\n"
     "\n"
     ,
     "Sorry, die Polygon-Datei muss \".poly\" als Endung haben.\n"
     "\n"
     };
-  static char* talk_minlon[langM]= {
+  static const char* talk_minlon[langM]= {
     "Please tell me the minimum longitude (unit degree):\n"
     ,
     "Bitte nennen Sie mir den Minimum-Laengengrad (in Grad):\n"
     };
-  static char* talk_maxlon[langM]= {
+  static const char* talk_maxlon[langM]= {
     "Please tell me the maximum longitude (unit degree):\n"
     ,
     "Bitte nennen Sie mir den Maximum-Laengengrad (in Grad):\n"
     };
-  static char* talk_minlat[langM]= {
+  static const char* talk_minlat[langM]= {
     "Please tell me the minimum latitude (unit degree):\n"
     ,
     "Bitte nennen Sie mir den Minimum-Breitengrad (in Grad):\n"
     };
-  static char* talk_maxlat[langM]= {
+  static const char* talk_maxlat[langM]= {
     "Please tell me the maximum latitude (unit degree):\n"
     ,
     "Bitte nennen Sie mir den Maximum-Breitengrad (in Grad):\n"
     };
-  static char* talk_output_format[langM]= {
+  static const char* talk_output_format[langM]= {
     "Please choose the output file format:\n"
     "\n"
     "1 .osm (standard XML format - results in very large files)\n"
@@ -8359,24 +8373,24 @@ static bool assistant(int* argcp,char*** argvp) {
     "\n"
     "1, 2 oder 3 eingeben:\n"
     };
-  static char* talk_working[langM]= {
+  static const char* talk_working[langM]= {
     "Now, please hang on - I am working for you.\n"
     "If the input file is very large, this will take several minutes.\n"
     ,
     "Einen Moment bitte - ich arbeite fuer Sie.\n"
     "Falls die Eingabe-Datei sehr gross ist, dauert das einige Minuten.\n"
     };
-  static char* talk_finished[langM]= {
+  static const char* talk_finished[langM]= {
     "Finished!\n"
     ,
     "Fertig!\n"
     };
-  static char* talk_finished_file[langM]= {
+  static const char* talk_finished_file[langM]= {
     "I just completed your new file with this name:\n"
     ,
     "Soeben habe ich Ihre neue Datei mit diesem Namen fertiggestellt:\n"
     };
-  static char* talk_bye[langM]= {
+  static const char* talk_bye[langM]= {
     "\n"
     "Thanks for visiting me. Bye!\n"
     "Yours, Bert\n"
@@ -8426,6 +8440,23 @@ static bool assistant(int* argcp,char*** argvp) {
 return false;
     }
 
+  // initialization
+  for(i= 1; i<langM; i++) {
+    talk_section[i]= talk_section[0];
+    // (this dialog text is the same for all languages)
+    }
+
+  /* select language */ {
+    const char* syslang;
+
+    syslang= setlocale(LC_ALL,"");
+    lang= langM;
+    while(--lang>0)
+      if(syslang!=NULL &&
+          (strzcmp(syslang,talk_lang1[lang])==0 ||
+          strzcmp(syslang,talk_lang2[lang])==0)) break;
+    }
+
   // introduction
   DD(talk_intro)
   DI(s)
@@ -8433,17 +8464,7 @@ return false;
   while(*sp==' ') sp++;  // dispose of leading spaces
   if(*sp==0)
 return true;
-  lang= langM;
-  while(--lang>0) if(talk_intro[lang][0]==tolower(*sp)) break;
-    // select language
   verbose= isupper(*(unsigned char*)sp);
-
-  // initialization
-  for(i= 1; i<langM; i++) {
-    talk_intro[i]= talk_intro[0];
-    talk_section[i]= talk_section[0];
-    // (first two dialog texts are the same for all languages)
-    }
 
   // choose input file
   DD(talk_section)

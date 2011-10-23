@@ -1,5 +1,5 @@
-// osmfilter 2011-10-19 23:10
-#define VERSION "1.1A"
+// osmfilter 2011-10-23 18:00
+#define VERSION "1.1E"
 // (c) 2011 Markus Weber, Nuernberg
 //
 // This program is free software; you can redistribute it and/or
@@ -198,9 +198,9 @@ const char* helptext=
 "        You may use wildcard characters for the value, but only at\n"
 "        the beginning and/or at the end. For example:\n"
 "          \"name=Jo* highway=*ary ref_name=*freight*\n"
-"        There are two special keys which represent user id and user\n"
-"        name: @uid, @user. They allow you to search for the edits of\n"
-"        specific users.\n"
+"        There are three special keys which represent object id, user\n"
+"        id and user name: @id, @uid and @user. They allow you to\n"
+"        search for certain objects or for edits of specific users.\n"
 "\n"
 "Examples\n"
 "\n"
@@ -395,6 +395,28 @@ static inline char* uint32toa(uint32_t v,char* s) {
     { c= *s1; *s1= *s2; *s2= c; s1++; s2--; }
   return s;
   }  // end   uint32toa()
+
+static inline char* int64toa(int64_t v,char* s) {
+  // convert int64_t integer into string;
+  // v: long integer value to convert;
+  // return: s;
+  // s[]: digit string;
+  char* s1,*s2;
+  char c;
+
+  s1= s;
+  if(v<0)
+    { *s1++= '-'; v= -v; }
+  else if(v==0)
+    *s1++= '0';
+  s2= s1;
+  while(v>0)
+    { *s2++= "0123456789"[v%10]; v/= 10; }
+  *s2--= 0;
+  while(s2>s1)
+    { c= *s1; *s1= *s2; *s2= c; s1++; s2--; }
+  return s;
+  }  // end   int64toa()
 
 static inline char *stpcpy0(char *dest, const char *src) {
   // redefinition of C99's stpcpy() because it's missing in MinGW,
@@ -4737,8 +4759,10 @@ return 18;
     // simply add them as key/val tags;
     keyf= keye; valf= vale;
     if(fil_filterheader) {
-      static char uids[30];
+      static char ids[30],uids[30];
 
+      *keyf++= "@id";
+      *valf++= int64toa(id,ids);
       *keyf++= "@uid";
       *valf++= int32toa(hisuid,uids);
       *keyf++= "@user";
