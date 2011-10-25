@@ -1,5 +1,5 @@
-// osmconvert 2011-10-23 16:00
-#define VERSION "0.4K"
+// osmconvert 2011-10-25 11:20
+#define VERSION "0.4M"
 // (c) 2011 Markus Weber, Nuernberg
 //
 // compile this source with option -lz
@@ -225,11 +225,12 @@ const char* helptext=
 "Examples\n"
 "\n"
 "./osmconvert europe.pbf --drop-author >europe.osm\n"
-"bzcat europe.osm.bz2 |./osmconvert - |gzip >europe.osm\n"
+"./osmconvert europe.pbf |gzip >europe.osm.gz\n"
+"bzcat europe.osm.bz2 |./osmconvert --out-pbf >europe.pbf\n"
 "./osmconvert europe.pbf -B=ch.poly >switzerland.osm\n"
 "./osmconvert switzerland.osm --out-o5m >switzerland.o5m\n"
 "./osmconvert june_july.osc --out-o5c >june_july.o5c\n"
-"./osmconvert june.o5m june_july.o5c --out-o5m >july.o5m\n"
+"./osmconvert june.o5m june_july.o5c.gz --out-o5m >july.o5m\n"
 "./osmconvert sep.osm sep_oct.osc oct_nov.osc >nov.osm\n"
 "./osmconvert northamerica.osm southamerica.osm >americas.osm\n"
 "\n"
@@ -958,12 +959,19 @@ static bool border_box(const char* s) {
   // read coordinates of a border box;
   // s[]: coordinates as a string; example: "11,49,11.3,50"
   // return: success;
+  char s0[300],*sp;
   double x1f,y1f;  // coordinates of southwestern corner
   double x2f,y2f;  // coordinates of northeastern corner
   int r;
 
+  strMcpy(s0,s);
+  sp= s0;
+  while(*sp!=0) {  // replace every ',' by ';'
+    if(*sp==',') *sp= ';';
+    sp++;
+    }
   x1f= y1f= x2f= y2f= 200.1;
-  r= sscanf(s,"%lG,%lG,%lG,%lG",&x1f,&y1f,&x2f,&y2f);
+  r= sscanf(s0,"%lG;%lG;%lG;%lG",&x1f,&y1f,&x2f,&y2f);
   if(r!=4 || x1f<-180.1 || x1f>180.1 || y1f<-90.1 || y1f>90.1 ||
       x2f<-180.1 || x2f>180.1 || y2f<-90.1 || y2f>90.1)
 return false;
@@ -8277,9 +8285,10 @@ static bool assistant(int* argcp,char*** argvp) {
     "\n"
     "1  convert it to a different file format\n"
     "2  use an OSM Changefile to update this file\n"
-    "3  use a border polygon file to limit the geographical region\n"
-    "4  use a border box to limit the geographical region\n"
-    "5  display statistics of the file\n"
+    "3  use a border box to limit the geographical region\n"
+    "4  use a border polygon file to limit the geographical region\n"
+    "5  minimize file size by deleting author information\n"
+    "6  display statistics of the file\n"
     "\n"
     "Please enter the number of one or more functions you choose:\n"
     ,
@@ -8287,9 +8296,10 @@ static bool assistant(int* argcp,char*** argvp) {
     "\n"
     "1  in ein anderes Format umwandeln\n"
     "2  sie per OSM-Change-Datei aktualisieren\n"
-    "3  mit einer Polygon-Datei einen geografischen Bereich ausschneiden\n"
-    "4  per Laengen- und Breitengrad einen Bereich ausschneiden\n"
-    "5  statistische Daten zu dieser Datei anzeigen\n"
+    "3  per Laengen- und Breitengrad einen Bereich ausschneiden\n"
+    "4  mit einer Polygon-Datei einen Bereich ausschneiden\n"
+    "5  Autorinformationen loeschen und damit Dateigroesse minimieren\n"
+    "6  statistische Daten zu dieser Datei anzeigen\n"
     "\n"
     "Bitte waehlen Sie die Nummer(n) von einer oder mehreren Funktionen:\n"
     };
@@ -8306,7 +8316,7 @@ static bool assistant(int* argcp,char*** argvp) {
     "\n"
     };
   static const char* talk_two_borders[langM]= {
-    "Please do not choose both, border polygon and border box.\n"
+    "Please do not choose both, border box and border polygon.\n"
     "\n"
     ,
     "Bitte nicht beide Arten des Ausschneidens gleichzeitig waehlen.\n"
@@ -8336,25 +8346,32 @@ static bool assistant(int* argcp,char*** argvp) {
     "Sorry, die Polygon-Datei muss \".poly\" als Endung haben.\n"
     "\n"
     };
-  static const char* talk_minlon[langM]= {
-    "Please tell me the minimum longitude (unit degree):\n"
+  static const char* talk_coordinates[langM]= {
+    "We need the coordinates of the border box.\n"
+    "The unit is degree, just enter each number, e.g.: -35.75\n"
     ,
-    "Bitte nennen Sie mir den Minimum-Laengengrad (in Grad):\n"
+    "Wir brauchen die Bereichs-Koordinaten in Grad,\n"
+    "aber jeweils ohne Einheitenbezeichnung, also z.B.: 7,75\n"
+    };
+  static const char* talk_minlon[langM]= {
+    "Please tell me the minimum longitude:\n"
+    ,
+    "Bitte nennen Sie mir den Minimum-Laengengrad:\n"
     };
   static const char* talk_maxlon[langM]= {
-    "Please tell me the maximum longitude (unit degree):\n"
+    "Please tell me the maximum longitude:\n"
     ,
-    "Bitte nennen Sie mir den Maximum-Laengengrad (in Grad):\n"
+    "Bitte nennen Sie mir den Maximum-Laengengrad:\n"
     };
   static const char* talk_minlat[langM]= {
-    "Please tell me the minimum latitude (unit degree):\n"
+    "Please tell me the minimum latitude:\n"
     ,
-    "Bitte nennen Sie mir den Minimum-Breitengrad (in Grad):\n"
+    "Bitte nennen Sie mir den Minimum-Breitengrad:\n"
     };
   static const char* talk_maxlat[langM]= {
-    "Please tell me the maximum latitude (unit degree):\n"
+    "Please tell me the maximum latitude:\n"
     ,
-    "Bitte nennen Sie mir den Maximum-Breitengrad (in Grad):\n"
+    "Bitte nennen Sie mir den Maximum-Breitengrad:\n"
     };
   static const char* talk_output_format[langM]= {
     "Please choose the output file format:\n"
@@ -8376,9 +8393,17 @@ static bool assistant(int* argcp,char*** argvp) {
   static const char* talk_working[langM]= {
     "Now, please hang on - I am working for you.\n"
     "If the input file is very large, this will take several minutes.\n"
+    "\n"
+    "If you want to get acquainted with the much more powerful\n"
+    "command line, this would have been your command:\n"
+    "\n"
     ,
     "Einen Moment bitte - ich arbeite fuer Sie.\n"
     "Falls die Eingabe-Datei sehr gross ist, dauert das einige Minuten.\n"
+    "\n"
+    "Fall Sie sich mit der viel leistungsfaehigeren Kommandozeilen-\n"
+    "eingabe vertraut machen wollen, das waere Ihr Kommando geswesen:\n"
+    "\n"
     };
   static const char* talk_finished[langM]= {
     "Finished!\n"
@@ -8406,8 +8431,9 @@ static bool assistant(int* argcp,char*** argvp) {
   bool
     function_convert= false,
     function_update= false,
-    function_border_polygon= false,
     function_border_box= false,
+    function_border_polygon= false,
+    function_drop_author= false,
     function_statistics= false;
   static bool function_only_statistics= false;
   bool verbose;
@@ -8445,8 +8471,9 @@ return false;
     talk_section[i]= talk_section[0];
     // (this dialog text is the same for all languages)
     }
+  verbose= false;
 
-  /* select language */ {
+  /* get system language */ {
     const char* syslang;
 
     syslang= setlocale(LC_ALL,"");
@@ -8455,6 +8482,7 @@ return false;
       if(syslang!=NULL &&
           (strzcmp(syslang,talk_lang1[lang])==0 ||
           strzcmp(syslang,talk_lang2[lang])==0)) break;
+    setlocale(LC_ALL,"C");  // switch back to C standard
     }
 
   // introduction
@@ -8506,10 +8534,12 @@ return true;
       else if(*sp=='2')
         function_update= true;
       else if(*sp=='3')
-        function_border_polygon= true;
-      else if(*sp=='4')
         function_border_box= true;
+      else if(*sp=='4')
+        function_border_polygon= true;
       else if(*sp=='5')
+        function_drop_author= true;
+      else if(*sp=='6')
         function_statistics= true;
       else if(*sp==' ' || *sp==',' || *sp==';') {
         sp++;
@@ -8521,7 +8551,7 @@ return true;
         }
       i++; sp++;
       }
-    if(function_border_polygon && function_border_box) {
+    if(function_border_box && function_border_polygon) {
       DD(talk_two_borders)
   continue;
       }
@@ -8585,6 +8615,7 @@ return true;
         while(strchr(s,',')!=NULL) *strchr(s,',')= '.'; \
         if(s[0]==0 || s[strspn(s,"0123456789.-")]!=0) { \
           DD(talk_cannot_understand) continue; }
+      DD(talk_coordinates)
       DD(talk_minlon)
       D(minlon)
       DD(talk_maxlon)
@@ -8640,8 +8671,6 @@ return true;
       sprintf(sp,"_%02i%s",i,s);
       while(++i<9999 && file_exists(output_file+3));
     }
-  DD(talk_working)
-  DD(talk_section)
 
   /* create new commandline arguments */ {
     int argc;
@@ -8664,6 +8693,8 @@ return true;
       sprintf(border,"-b=%s,%s,%s,%s",minlon,maxlon,minlat,maxlat);
       argv[argc++]= border;
       }
+    if(function_drop_author)
+      argv[argc++]= "--drop-author";
     if(function_only_statistics)
       argv[argc++]= "--out-statistics";
     else if(function_statistics)
@@ -8679,7 +8710,17 @@ return true;
     // return commandline variables
     *argcp= argc;
     *argvp= argv;
+
+    // display the virtual command line
+    DD(talk_working)
+    fprintf(stderr,"osmconvert");
+    i= 0;
+    while(++i<argc)
+      fprintf(stderr," %s",argv[i]);
+    fprintf(stderr,"\n");
+    DD(talk_section)
     }
+
   #undef langM
   #undef DP
   #undef DI
