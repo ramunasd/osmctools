@@ -1,5 +1,5 @@
-// osmfilter 2011-10-23 18:00
-#define VERSION "1.1E"
+// osmfilter 2011-10-26 14:30
+#define VERSION "1.1F"
 // (c) 2011 Markus Weber, Nuernberg
 //
 // This program is free software; you can redistribute it and/or
@@ -195,9 +195,11 @@ const char* helptext=
 "        It is allowed to omit the value. In this case, the program\n"
 "        will accept every value for the defined key. For example:\n"
 "          \"all highway= lit=yes\"\n"
-"        You may use wildcard characters for the value, but only at\n"
+"        You may use wildcard characters for key or value, but only at\n"
 "        the beginning and/or at the end. For example:\n"
-"          \"name=Jo* highway=*ary ref_name=*freight*\n"
+"          wikipedia:*=  highway=*ary  ref_name=*freight*\n"
+"        Besides, this wildcard is also applicable to the KEYNAME of\n"
+"        of statistic functions mentioned above.\n"
 "        There are three special keys which represent object id, user\n"
 "        id and user name: @id, @uid and @user. They allow you to\n"
 "        search for certain objects or for edits of specific users.\n"
@@ -1710,6 +1712,7 @@ static void count_write() {
 // the sections of private and public definitions are separated
 // by a horizontal line: ----
 
+#if 0
 static inline void fil_stresccpy(char *dest, const char *src,
     size_t len) {
   // similar as strmpy(), but remove every initial '\\' character;
@@ -1724,11 +1727,14 @@ static inline void fil_stresccpy(char *dest, const char *src,
     }
   *dest= 0;
   }  // end   fil_stresccpy()
+#endif
 
 static inline void fil_strescwildcpy(char *dest, const char *src,
     size_t len) {
-  // same as before, but not escaped '*' at beginning and end will
-  // be converted to '\x01';
+  // similar as strmpy(), but remove every initial '\\' character;
+  // len: length of the source string - without terminating zero;
+  // unescaped '*' at beginning and end will be converted to '\x01',
+  // because they are to be treated as wildcards later;
   const char* p;
 
   p= src+len;  //,,,
@@ -1888,11 +1894,11 @@ static void fil_set(int ftype,const char* arg) {
       }
     if(pv>=pe) {  // there is a key but no value
       if(len>0 && pk[len-1]=='=') len--;
-      fil_stresccpy(fe->k,pk,len);  // store this key
+      fil_strescwildcpy(fe->k,pk,len);  // store this key
       fe->v[0]= 0;  // null string because there is no value
       }
     else {  // key and value
-      fil_stresccpy(fe->k,pk,len);  // store this key
+      fil_strescwildcpy(fe->k,pk,len);  // store this key
       if(fe>fp && 
           (len==0 || strcmp(fe->k,(fe-1)->k)==0)) {
           // no key or same key as previous one
@@ -1940,7 +1946,7 @@ static inline bool fil_test0(int otype,
       if(fp->k[0]!=0) k= fp->k;
       keyp= key; valp= val;
       while(keyp<keye) {  // for all key/val pairs of this object
-        if(strcmp(*keyp,k)==0 &&
+        if(fil__cmp(*keyp,k) &&
           (fp->v[0]==0 || fil__cmp(*valp,fp->v)))
       break;
         keyp++; valp++;
@@ -1969,7 +1975,7 @@ return true;
       fp= &fil__pair[otype][0]; fe= fil__paire[otype];
       while(fp<fe) {  // for every key/val pair in filter
         if(fp->k[0]!=0) k= fp->k;
-        if(strcmp(*keyp,k)==0 &&
+        if(fil__cmp(*keyp,k) &&
           (fp->v[0]==0 || fil__cmp(*valp,fp->v)))
 return true;
         fp++;
@@ -1998,7 +2004,7 @@ static inline bool fil_test1(int otype,
       if(fp->k[0]!=0) k= fp->k;
       keyp= key; valp= val;
       while(keyp<keye) {  // for all key/val pairs of this object
-        if(strcmp(*keyp,k)==0 &&
+        if(fil__cmp(*keyp,k) &&
           (fp->v[0]==0 || fil__cmp(*valp,fp->v)))
       break;
         keyp++; valp++;
@@ -2016,7 +2022,7 @@ return true;
       fp= &fil__pair[3+otype][0]; fe= fil__paire[3+otype];
       while(fp<fe) {  // for every key/val pair in filter
         if(fp->k[0]!=0) k= fp->k;
-        if(strcmp(*keyp,k)==0 &&
+        if(fil__cmp(*keyp,k) &&
           (fp->v[0]==0 || fil__cmp(*valp,fp->v)))
 return true;
         fp++;
@@ -2045,7 +2051,7 @@ static inline bool fil_test2(int otype,
     fp= &fil__pair[6+otype][0]; fe= fil__paire[6+otype];
     while(fp<fe) {
       if(fp->k[0]!=0) k= fp->k;
-      keymatch= strcmp(key,k)==0;
+      keymatch= fil__cmp(key,k);
       if(keymatch && (fp->v[0]==0 || fil__cmp(val,fp->v)))
         goto keep;
       fp++;
@@ -2060,7 +2066,7 @@ return false;
     fp= &fil__pair[9+otype][0]; fe= fil__paire[9+otype];
     while(fp<fe) {
       if(fp->k[0]!=0) k= fp->k;
-      if(strcmp(key,k)==0 && (fp->v[0]==0 || fil__cmp(val,fp->v)))
+      if(fil__cmp(key,k) && (fp->v[0]==0 || fil__cmp(val,fp->v)))
 return false;
       fp++;
       }
@@ -3403,7 +3409,7 @@ return;
     if(global_outkey[0]==0)  // list keys
       count_add(key);
     else {  // list vals of one specific key
-      if(strcmp(key,global_outkey)==0)
+      if(fil__cmp(key,global_outkey))
           // this is the key of which we want its vals listed
         count_add(val);
       }
@@ -5093,17 +5099,21 @@ return 0;
       global_outosh= true;
   continue;  // take next parameter
       }
-    if((l= strzlcmp(a,"--out-key"))>0) {
+    if((l= strzlcmp(a,"--out-key"))>0 ||
+        (l= strzlcmp(a,"--out-count"))>0) {
         // user wants a list of keys or vals as output
       global_outkey= "";  // list of keys
-      if(a[l]=='=') global_outkey= a+l+1;  // list of vals
-  continue;  // take next parameter
-      }
-    if((l= strzlcmp(a,"--out-count"))>0) {
-        // user wants a list of keys or vals as output, sorted by count
-      global_outkey= "";  // list of keys
-      if(a[l]=='=') global_outkey= a+l+1;  // list of vals
-      global_outsort= true;
+      if(a[l]=='=') {  // list of vals to a certain key
+        static char k[300];
+        int len;
+
+        global_outkey= a+l+1;
+        len= strlen(global_outkey);
+        if(len>=sizeof(k)) len= sizeof(k)-1;
+        fil_strescwildcpy(k,global_outkey,len);
+        global_outkey= k;
+        }
+      if(a[6]=='c') global_outsort= true;
   continue;  // take next parameter
       }
     if(strzcmp(argv[0],"--emulate-pbf2")==0) {

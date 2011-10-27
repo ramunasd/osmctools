@@ -1,5 +1,5 @@
-// osmconvert 2011-10-25 11:20
-#define VERSION "0.4M"
+// osmconvert 2011-10-27 22:20
+#define VERSION "0.4N"
 // (c) 2011 Markus Weber, Nuernberg
 //
 // compile this source with option -lz
@@ -959,19 +959,12 @@ static bool border_box(const char* s) {
   // read coordinates of a border box;
   // s[]: coordinates as a string; example: "11,49,11.3,50"
   // return: success;
-  char s0[300],*sp;
   double x1f,y1f;  // coordinates of southwestern corner
   double x2f,y2f;  // coordinates of northeastern corner
   int r;
 
-  strMcpy(s0,s);
-  sp= s0;
-  while(*sp!=0) {  // replace every ',' by ';'
-    if(*sp==',') *sp= ';';
-    sp++;
-    }
   x1f= y1f= x2f= y2f= 200.1;
-  r= sscanf(s0,"%lG;%lG;%lG;%lG",&x1f,&y1f,&x2f,&y2f);
+  r= sscanf(s,"%lG,%lG,%lG,%lG",&x1f,&y1f,&x2f,&y2f);
   if(r!=4 || x1f<-180.1 || x1f>180.1 || y1f<-90.1 || y1f>90.1 ||
       x2f<-180.1 || x2f>180.1 || y2f<-90.1 || y2f>90.1)
 return false;
@@ -8190,12 +8183,18 @@ return 24;
 
 
 
+static void assistant_end();
+
 static bool assistant(int* argcp,char*** argvp) {
   // interactively guide the user through basic functions;
-  // argcp==NULL: display 'bye message', do nothing else;
-  // usually, this program is called twice: first, before
+  // argcp==NULL AND argvp==NULL: to confirm that the calculation
+  //                              has been terminated correctly;
+  // argcp==NULL AND argvp!=NULL:
+  // display 'bye message', do nothing else (third call);
+  // usually, this procedure must be called twice: first, before
   // parsing the command line arguments, and second, after
-  // the regular processing has been done;
+  // the regular processing has been done without any error;
+  // the third call will be done by atexit();
   // return: user wants to terminate the program;
   #define langM 2
   static int lang= 0;
@@ -8406,23 +8405,30 @@ static bool assistant(int* argcp,char*** argvp) {
     "\n"
     };
   static const char* talk_finished[langM]= {
-    "Finished!\n"
+    "Finished! Calculation time: "
     ,
-    "Fertig!\n"
+    "Fertig! Berechnungsdauer: "
     };
   static const char* talk_finished_file[langM]= {
     "I just completed your new file with this name:\n"
     ,
     "Soeben habe ich Ihre neue Datei mit diesem Namen fertiggestellt:\n"
     };
+  static const char* talk_error[langM]= {
+    "I am sorry, an error has occurred (see above).\n"
+    ,
+    "Es tut mir Leid, es ist ein Fehler aufgetreten (siehe oben).\n"
+    };
   static const char* talk_bye[langM]= {
     "\n"
     "Thanks for visiting me. Bye!\n"
     "Yours, Bert\n"
+    "(To close this window, please press <Return>.)\n"
     ,
     "\n"
     "Danke fuer Ihren Besuch. Tschues!\n"
     "Schoene Gruesse - Bert\n"
+    "(Zum Schließen dieses Fensters bitte die Eingabetaste druecken.)\n"
     };
   #define DD(s) fprintf(stderr,"%s",(s[lang]));  // display text
   #define DI(s) fgets(s,sizeof(s),stdin); \
@@ -8436,10 +8442,11 @@ static bool assistant(int* argcp,char*** argvp) {
     function_drop_author= false,
     function_statistics= false;
   static bool function_only_statistics= false;
+  static time_t start_time;
   bool verbose;
   char s[500];  // temporary string for several purposes
   char* sp;
-  char input_file[500];
+  static char input_file[500];
   bool file_type_osm,file_type_osc,file_type_o5m,file_type_o5c,
     file_type_pbf;
   static char changefile[500];
@@ -8451,22 +8458,43 @@ static bool assistant(int* argcp,char*** argvp) {
 
   // display 'bye message' - if requested
   if(argcp==NULL) {
-    if(output_file[0]!=0) {
-      DD(talk_section)
-      DD(talk_finished)
-      DD(talk_finished_file)
-      fprintf(stderr,"  %s",output_file+3);
-      DD(talk_bye)
-      }
-    else if(function_only_statistics) {
-      DD(talk_section)
-      DD(talk_finished)
-      DD(talk_bye)
+    static bool no_error= false;
+
+    if(argvp==NULL)
+      no_error= true;
+    else {
+      if(output_file[0]!=0) {
+        DD(talk_section)
+        if(no_error) {
+          DD(talk_finished)
+          fprintf(stderr,"%"PRIi64"s.\n",
+            (int64_t)(time(NULL)-start_time));
+          DD(talk_finished_file)
+          fprintf(stderr,"  %s",output_file+3);
+          }
+        else
+          DD(talk_error)
+        DD(talk_bye)
+        DI(s)
+        }
+      else if(function_only_statistics) {
+        DD(talk_section)
+        if(no_error) {
+          DD(talk_finished)
+          fprintf(stderr,"%"PRIi64"s.\n",
+            (int64_t)(time(NULL)-start_time));
+          }
+        else
+          DD(talk_error)
+        DD(talk_bye)
+        DI(s)
+        }
       }
 return false;
     }
 
   // initialization
+  atexit(assistant_end);
   for(i= 1; i<langM; i++) {
     talk_section[i]= talk_section[0];
     // (this dialog text is the same for all languages)
@@ -8618,10 +8646,10 @@ return true;
       DD(talk_coordinates)
       DD(talk_minlon)
       D(minlon)
-      DD(talk_maxlon)
-      D(maxlon)
       DD(talk_minlat)
       D(minlat)
+      DD(talk_maxlon)
+      D(maxlon)
       DD(talk_maxlat)
       D(maxlat)
       #undef D
@@ -8690,7 +8718,7 @@ return true;
       argv[argc++]= border;
       }
     else if(function_border_box) {
-      sprintf(border,"-b=%s,%s,%s,%s",minlon,maxlon,minlat,maxlat);
+      sprintf(border,"-b=%s,%s,%s,%s",minlon,minlat,maxlon,maxlat);
       argv[argc++]= border;
       }
     if(function_drop_author)
@@ -8721,11 +8749,17 @@ return true;
     DD(talk_section)
     }
 
+  start_time= time(NULL);
   #undef langM
   #undef DP
   #undef DI
   return false;
   }  // assistant()
+
+static void assistant_end() {
+  // will be called via atexit()
+  assistant(NULL,(char***)assistant_end);
+  }  // assistant_end()
 
 
 
