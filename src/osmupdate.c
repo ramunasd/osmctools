@@ -1,5 +1,5 @@
-// osmupdate 2011-10-18 18:40
-#define VERSION "0.2A"
+// osmupdate 2011-11-06 01:20
+#define VERSION "0.2C"
 // (c) 2011 Markus Weber, Nuernberg
 //
 // This program is free software; you can redistribute it and/or
@@ -90,8 +90,8 @@ const char* helptext=
 "\n"
 "--max-days=UPDATE_RANGE\n"
 "        By default, the maximum time range for to assemble a\n"
-"        cumulated changefile is 48 days. You can change this by\n"
-"        giving a different maximum number of days, for example 80.\n"
+"        cumulated changefile is 250 days. You can change this by\n"
+"        giving a different maximum number of days, for example 300.\n"
 "        If you do, please ensure that there are daily change files\n"
 "        available for such a wide range of time.\n"
 "\n"
@@ -739,7 +739,7 @@ static int64_t get_newest_changefile_timestamp(
     stecpy(&command_p,command_e,"hour-replicate/state.txt");
     break;
   case cft_DAILY:
-    stecpy(&command_p,command_e,"daily/timestamp.txt");
+    stecpy(&command_p,command_e,"history/timestamp.txt");
     break;
   default:  // invalid change file type
 return 0;
@@ -1000,7 +1000,7 @@ static void process_changefile(
       stecpy(&command_p,command_e,"hour-replicate/");
       break;
     case cft_DAILY:
-      stecpy(&command_p,command_e,"daily/");
+      stecpy(&command_p,command_e,"history/");
       break;
     default:  // invalid change file type
       return;
@@ -1015,10 +1015,15 @@ static void process_changefile(
       }  // minutely or hourly changefile
     else {  // daily changefile
       int32todate(file_sequence_number-1,command_p);  // previous day
-      command_p+= 8;
-      *command_p++= '-';
-      int32todate(file_sequence_number,command_p);  // day
-      command_p+= 8;
+      command_p+= 4;  // jump over the 4 year digits
+      memmove(command_p+1,command_p,4);
+        // separate month and day from year
+      *command_p= '/';  // insert a slash between year and month
+      command_p+= 5;  // jump over slash, month and date
+      *command_p++= '-';  // add a dash
+      int32todate(file_sequence_number,command_p);  // actual day
+      memmove(command_p,command_p+4,4);  // dispose of the year digits
+      command_p+= 4;  // jump over month and date
       stecpy(&command_p,command_e,".osc.gz");
       }  // daily changefile
     stecpy(&command_p,command_e," -O \"");
@@ -1045,7 +1050,7 @@ exit(1);
 
   if(number_of_changefiles_in_cache>=global_max_merge
       || (file_sequence_number==0 && number_of_changefiles_in_cache>0)) {
-      // at lease one change files must be merged
+      // at least one change files must be merged
     // merge all changefiles which are waiting in cache
     if(loglevel>0)
       PINFO("Merging changefiles.")
@@ -1164,7 +1169,7 @@ int main(int argc,const char** argv) {
   new_file_is_pbf= false;
   new_file_is_changefile= false;
   new_file_is_gz= false;
-  max_update_range= 48*86400;  // less than 50 days
+  max_update_range= 250*86400;
   process_minutely= process_hourly= process_daily= false;
   no_minutely= no_hourly= no_daily= false;
   if(file_exists(global_osmconvert_program))
@@ -1199,7 +1204,7 @@ return 0;
       char* sp;
 
       sp= strchr(a,'=');
-      if(sp!=NULL) loglevel= sp[-1]-'0'; else loglevel= 1;
+      if(sp!=NULL) loglevel= sp[1]-'0'; else loglevel= 1;
       if(loglevel<1) loglevel= 1;
       if(loglevel>MAXLOGLEVEL) loglevel= MAXLOGLEVEL;
       if(a[1]=='-') {  // must be "--verbose" and not "-v"

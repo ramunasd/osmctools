@@ -1,5 +1,5 @@
-// osmfilter 2011-10-26 14:30
-#define VERSION "1.1F"
+// osmfilter 2011-11-06 01:30
+#define VERSION "1.1H"
 // (c) 2011 Markus Weber, Nuernberg
 //
 // This program is free software; you can redistribute it and/or
@@ -171,8 +171,11 @@ const char* helptext=
 "        converted into .o5c data format.\n"
 "\n"
 "-v\n"
-"        With activated \'verbose\' mode, some statistical and\n"
+"--verbose\n"
+"        With activated \'verbose\' mode, some statistical data and\n"
 "        diagnosis data will be displayed.\n"
+"        If -v resp. --verbose is the first parameter in the line,\n"
+"        osmfilter will display all input parameters.\n"
 "\n"
 "--parameter-file=FILE\n"
 "        If you want to supply one ore more command line arguments\n"
@@ -5136,18 +5139,21 @@ return 0;
       strmcpy(global_tempfilename,a+3,sizeof(global_tempfilename)-30);
   continue;  // take next parameter
       }
-    if(strzcmp(a,"-v")==0) {
-        // test mode
-      if(a[2]=='=')
-        loglevel= a[3]-'0';
-      else
-        loglevel= a[2]-'0';
+    if((strcmp(a,"-v")==0 || strcmp(a,"--verbose")==0 ||
+        strzcmp(a,"-v=")==0 || strzcmp(a,"--verbose=")==0) &&
+        loglevel==0) {  // test mode - if not given already
+      char* sp;
+
+      sp= strchr(a,'=');
+      if(sp!=NULL) loglevel= sp[1]-'0'; else loglevel= 1;
       if(loglevel<1) loglevel= 1;
       if(loglevel>MAXLOGLEVEL) loglevel= MAXLOGLEVEL;
-      if(loglevel==1)
-        fprintf(stderr,"osmfilter: Verbose mode.\n");
-      else
-        fprintf(stderr,"osmfilter: Verbose mode %i.\n",loglevel);
+      if(a[1]=='-') {  // must be "--verbose" and not "-v"
+        if(loglevel==1)
+          fprintf(stderr,"osmfilter: Verbose mode.\n");
+        else
+          fprintf(stderr,"osmfilter: Verbose mode %i.\n",loglevel);
+        }
   continue;  // take next parameter
       }
     if(strcmp(a,"-t")==0) {

@@ -1,5 +1,5 @@
-// osmconvert 2011-10-27 22:20
-#define VERSION "0.4N"
+// osmconvert 2011-11-06 01:30
+#define VERSION "0.4P"
 // (c) 2011 Markus Weber, Nuernberg
 //
 // compile this source with option -lz
@@ -101,6 +101,8 @@ const char* helptext=
 "--drop-version\n"
 "        If you want to exclude not only the author information but\n"
 "        also the version number, specify this option.\n"
+"        If -v resp. --verbose is the first parameter in the line,\n"
+"        osmconvert will display all input parameters.\n"
 "\n"
 "--drop-nodes\n"
 "--drop-ways\n"
@@ -8401,7 +8403,7 @@ static bool assistant(int* argcp,char*** argvp) {
     "Falls die Eingabe-Datei sehr gross ist, dauert das einige Minuten.\n"
     "\n"
     "Fall Sie sich mit der viel leistungsfaehigeren Kommandozeilen-\n"
-    "eingabe vertraut machen wollen, das waere Ihr Kommando geswesen:\n"
+    "eingabe vertraut machen wollen, das waere Ihr Kommando gewesen:\n"
     "\n"
     };
   static const char* talk_finished[langM]= {
@@ -8986,18 +8988,21 @@ return 0;
       outputfilename= a+3;
   continue;  // take next parameter
       }
-    if(strzcmp(a,"-v")==0) {
-        // test mode
-      if(a[2]=='=')
-        loglevel= a[3]-'0';
-      else
-        loglevel= a[2]-'0';
+    if((strcmp(a,"-v")==0 || strcmp(a,"--verbose")==0 ||
+        strzcmp(a,"-v=")==0 || strzcmp(a,"--verbose=")==0) &&
+        loglevel==0) {  // test mode - if not given already
+      char* sp;
+
+      sp= strchr(a,'=');
+      if(sp!=NULL) loglevel= sp[1]-'0'; else loglevel= 1;
       if(loglevel<1) loglevel= 1;
       if(loglevel>MAXLOGLEVEL) loglevel= MAXLOGLEVEL;
-      if(loglevel==1)
-        fprintf(stderr,"osmconvert: Verbose mode.\n");
-      else
-        fprintf(stderr,"osmconvert: Verbose mode %i.\n",loglevel);
+      if(a[1]=='-') {  // must be "--verbose" and not "-v"
+        if(loglevel==1)
+          fprintf(stderr,"osmconvert: Verbose mode.\n");
+        else
+          fprintf(stderr,"osmconvert: Verbose mode %i.\n",loglevel);
+        }
   continue;  // take next parameter
       }
     if(strcmp(a,"-t")==0) {
