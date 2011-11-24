@@ -1,5 +1,5 @@
-// osmfilter 2011-11-06 01:30
-#define VERSION "1.1H"
+// osmfilter 2011-11-23 00:10
+#define VERSION "1.1K"
 // (c) 2011 Markus Weber, Nuernberg
 //
 // This program is free software; you can redistribute it and/or
@@ -170,19 +170,20 @@ const char* helptext=
 "        <delete> tags will not be performed as delete actions but\n"
 "        converted into .o5c data format.\n"
 "\n"
-"-v\n"
-"--verbose\n"
-"        With activated \'verbose\' mode, some statistical data and\n"
-"        diagnosis data will be displayed.\n"
-"        If -v resp. --verbose is the first parameter in the line,\n"
-"        osmfilter will display all input parameters.\n"
-"\n"
 "--parameter-file=FILE\n"
 "        If you want to supply one ore more command line arguments\n"
 "        by a parameter file, please use this option and specify the\n"
 "        file name. Within the parameter file, parameters must be\n"
 "        separated by empty lines. Line feeds inside a parameter will\n"
 "        be converted to spaces.\n"
+"        Lines starting with \"// \" will be treated as comments.\n"
+"\n"
+"-v\n"
+"--verbose\n"
+"        With activated \'verbose\' mode, some statistical data and\n"
+"        diagnosis data will be displayed.\n"
+"        If -v resp. --verbose is the first parameter in the line,\n"
+"        osmfilter will display all input parameters.\n"
 "\n"
 "FILTER\n"
 "        Some of the command line arguments need a FILTER to be\n"
@@ -224,7 +225,7 @@ const char* helptext=
 "So, for example, you can decrease the hash sizes to e.g. 160, 16 and\n"
 "4 MiB (for relations, 2 flags are needed each) using this option:\n"
 "\n"
-"  -h=160-16-4\n"
+"  --hash-memory=160-16-4\n"
 "\n"
 "But keep in mind that the OSM database is continuously expanding. For\n"
 "this reason the program-own default value is higher than shown in the\n"
@@ -233,7 +234,7 @@ const char* helptext=
 "amount of memory as a sum, and the program will divide it by itself.\n"
 "For example:\n"
 "\n"
-"  -h=1000\n"
+"  --hash-memory=1000\n"
 "\n"
 "These 1000 MiB will be split in three parts: 800 for nodes, 150 for\n"
 "ways, and 50 for relations.\n"
@@ -1031,7 +1032,7 @@ static inline int read_jump(int position,bool jump) {
   // position: 0..2; storage position;
   //           be careful, no boundary checking is done;
   // jump: jump to a previously stored position;
-  // return: ==0: OK; ==1: position not stored yet; ==2: jump error;
+  // return: ==0: ok; !=0: error;
   static off_t pos[3]= {-1,-1,-1};
 
   if(jump) {
@@ -4953,19 +4954,26 @@ return 0;  // end the program, because without having parameters
       for(;;) {
         aamax= main__aaM-1-(ap-aa);
         if(fgets(ap,aamax,parafile)==NULL) {
-          if(ap>aa)
+          if(ap>aa) {
+            if(ap>aa && ap[-1]==' ')
+              *--ap= 0;  // cut one trailing space
       break;
+            }
           goto parafileend;
           }
+        if(strzcmp(ap,"// ")==0)
+      continue;
         if(ap>aa && (*ap=='\r' || *ap=='\n' || *ap==0)) {
             // end of this parameter
-          while(ap>aa && (ap[-1]=='\r' || ap[-1]=='\n')) ap--;
+          while(ap>aa && (ap[-1]=='\r' || ap[-1]=='\n')) *--ap= 0;
             // eliminate trailing NL
-          *ap++= ' '; *ap= 0;  // add a space
+          if(ap>aa && ap[-1]==' ')
+            *--ap= 0;  // cut one trailing space
       break;
           }
         ap= strchr(ap,0);  // find end of string
-        while(ap>aa && ap[-1]=='\n') *--ap= 0;  // cut newline chars
+        while(ap>aa && ap[-1]=='\n')
+          *--ap= 0;  // cut newline chars
         *ap++= ' '; *ap= 0;  // add a space
         }
       a= aa;
@@ -4988,15 +4996,13 @@ return 0;  // end the program, because without having parameters
         // parameter file
       parafile= fopen(a+l,"r");
       if(parafile==NULL) {
-        fprintf(stderr,
-          "osmfilter: Cannot open parameter file: %.80s\n",a+l);
+        PERRv("Cannot open parameter file: %.80s",a+l)
         perror("osmfilter");
 return 1;
         }
       aa= (char*)malloc(main__aaM);
       if(aa==NULL) {
-        fprintf(stderr,
-          "osmfilter: Cannot get memory for parameter file.\n");
+        PERR("Cannot get memory for parameter file.")
         fclose(parafile); parafile= NULL;
 return 1;
         }
@@ -5162,11 +5168,12 @@ return 0;
       fprintf(stderr,"osmfilter: Entering test mode.\n");
   continue;  // take next parameter
       }
-    if(strzcmp(a,"-h=")==0 && isdig(a[3])) {
+    if(((l= strzlcmp(a,"--hash-memory="))>0 ||
+        (l= strzlcmp(a,"-h="))>0) && isdig(a[l])) {
         // "-h=...": user wants a specific hash size;
       const char* p;
 
-      p= argv[0]+3;  // jump over "-h="
+      p= a+l;  // jump over "-h="
       h_n= h_w= h_r= 0;
       // read the up to three values for hash tables' size;
       // format examples: "-h=200-20-10", "-h=1200"

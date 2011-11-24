@@ -1,5 +1,5 @@
-// osmupdate 2011-11-06 01:20
-#define VERSION "0.2C"
+// osmupdate 2011-11-22 16:00
+#define VERSION "0.2H"
 // (c) 2011 Markus Weber, Nuernberg
 //
 // This program is free software; you can redistribute it and/or
@@ -687,8 +687,11 @@ exit(1);
     stecpy(&command_p,command_e,"\" 2>&1");
     shell_command(command,result);
     p= strstr(result,"timestamp max: ");
-    if(p!=NULL)
+    if(p!=NULL) {
       file_timestamp= strtimetosint64(p+15);
+      PINFO("Aging the timestamp by 4 hours for safety reasons.")
+      file_timestamp-= 4*3600;
+      }
     }  // the file has no file timestamp
   if(loglevel>0) {  // verbose mode
     char ts[30];
@@ -1303,6 +1306,11 @@ return 0;
           >=sizeof(final_osmconvert_arguments)) {
         PERR("too many command line arguments for osmconvert.")
 return 1;
+        }
+      if(strcmp(a,"--complete-ways")==0 ||
+          strcmp(a,"--complex-ways")==0) {
+        WARNv("option %.80s does not work with updates.",a)
+  continue;  // take next parameter
         }
       if(strzcmp(a,"-b=")!=0 && strzcmp(a,"-B=")!=0) {
           // not a bounding box and not a bounding polygon
