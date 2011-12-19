@@ -1,8 +1,9 @@
-// osmconvert 2011-11-23 22:00
-#define VERSION "0.5P"
+// osmconvert 2011-12-19 14:20
+#define VERSION "0.5V"
 // (c) 2011 Markus Weber, Nuernberg
 //
-// compile this source with option -lz
+// compile this file:
+// gcc osmconvert.c -lz -O3 -o osmconvert
 //
 // This program is free software; you can redistribute it and/or
 // modify it under the terms of the GNU Affero General Public License
@@ -256,6 +257,8 @@ const char* helptext=
 "\n"
 "-o=<outfile>\n"
 "        Standard output will be rerouted to the specified file.\n"
+"        If no output format has been specified, the program will\n"
+"        rely  the file name extension.\n"
 "\n"
 "-t=<tempfile>\n"
 "        If borders are to be applied or broken references to be\n"
@@ -333,6 +336,14 @@ const char* helptext=
 "OSM objects by yourself. For example:\n"
 "\n"
 "  --max-objects=45000000\n"
+"\n"
+"The number of references per object is limited to 100,000. This will\n"
+"be sufficient for all OSM files. If you are going to create your own\n"
+"OSM files by converting shapefiles or other files to OSM format, this\n"
+"might result in way objects with more than 100,000 nodes. For this\n"
+"reason you will need to increase the maximum accordingly. Example:\n"
+"\n"
+"  --max-refs=400000\n"
 "\n"
 "Limitations\n"
 "\n"
@@ -462,6 +473,7 @@ static int64_t global_otypeoffsetstep= 0;
   // and adding 1 for every new way, resp. relation:
 static char global_tempfilename[350]= "osmconvert_tempfile";
   // prefix of names for temporary files
+static int64_t global_maxrefs= 100000;
 #define PERR(f) { static int msgn= 3; if(--msgn>=0) \
   fprintf(stderr,"osmconvert Error: " f "\n"); }
   // print error message
@@ -1813,7 +1825,7 @@ static void write__end() {
     }
   if(loglevel<2)
     if(write__filename_temp!=NULL) unlink(write__filename_temp);
-  }  // end   read__end()
+  }  // end   write__end()
 
 //------------------------------------------------------------
 
@@ -8079,10 +8091,33 @@ static void oo__closeall() {
     }
   }  // end oo__closeall()
 
+static void* oo__malloc_p[50];
+  // pointers for controlled memory allocation
+static int oo__malloc_n= 0;
+  // number of elements used in oo__malloc_p[]
+
+static void* oo__malloc(size_t size) {
+  // same as malloc(), but the allocated memory will be
+  // automatically freed at program end;
+  void* mp;
+
+  mp= malloc(size);
+  if(mp==NULL) {
+    PERRv("cannot allocate %"PRIi64" bytes of memory.",(int64_t)size);
+    exit(1);
+    }
+  oo__malloc_p[oo__malloc_n++]= mp;
+  return mp;
+  }  // oo__malloc()
+
 static void oo__end() {
   // clean-up this module;
   oo__closeall();
+  while(oo__malloc_n>0)
+    free(oo__malloc_p[--oo__malloc_n]);
   }  // end oo__end()
+
+
 
 //------------------------------------------------------------
 
@@ -8252,13 +8287,12 @@ static int oo_main() {
   int64_t hiscset;
   uint32_t hisuid;
   char* hisuser;
-  #define oo__refM 100000
-  int64_t refid[oo__refM];
+  int64_t* refid;  // ids of referenced object ,,,,,
   int64_t* refidee;  // end address of array
   int64_t* refide,*refidp;  // pointer in array
-  byte reftype[oo__refM];
+  byte* reftype;  // types of referenced objects
   byte* reftypee,*reftypep;  // pointer in array
-  char* refrole[oo__refM];
+  char** refrole;  // roles of referenced objects
   char** refrolee,**refrolep;  // pointer in array
   #define oo__keyvalM 8000  // changed from 4000 to 8000
     // because there are old ways with this many key/val pairs
@@ -8276,13 +8310,16 @@ static int oo_main() {
   byte* bp;
   char* sp;
   struct {
-    int64_t nodes,ways,relations;  // number of objects
+    int64_t nodes,ways,relations;  // number of objects ,,,,,
     int64_t node_id_min,node_id_max;
     int64_t way_id_min,way_id_max;
     int64_t relation_id_min,relation_id_max;
     int64_t timestamp_min,timestamp_max;
     int32_t lon_min,lon_max;
     int32_t lat_min,lat_max;
+    int32_t keyval_pairs_max;
+    int32_t noderefs_max;
+    int32_t relrefs_max;
     } statistics;
   bool diffcompare;  // the next object shall be compared
     // with the object which has just been read;
@@ -8303,7 +8340,10 @@ static int oo_main() {
   else if(global_emulateosmosis) wformat= 13;
   else if(global_emulateosmium) wformat= 14;
   else wformat= 11;
-  refidee= refid+oo__refM;
+  refid= (int64_t*)oo__malloc(sizeof(int64_t)*global_maxrefs);
+  refidee= refid+global_maxrefs;
+  reftype= (byte*)oo__malloc(global_maxrefs);
+  refrole= (char**)oo__malloc(sizeof(char*)*global_maxrefs);
   keyee= key+oo__keyvalM;
   diffcompare= false;
   diffdifference= false;
@@ -8698,10 +8738,10 @@ return 23;
       oo__ifp->deleteobject= pb_hisvis==0? 1: 0;
       // read noderefs (for ways only)
       if(otype==1)  // way
-        refide= refid+pb_noderef(refid,oo__refM);
+        refide= refid+pb_noderef(refid,global_maxrefs);
       // read refs (for relations only)
       else if(otype==2) {  // relation
-        l= pb_ref(refid,reftype,refrole,oo__refM);
+        l= pb_ref(refid,reftype,refrole,global_maxrefs);
         refide= refid+l;
         reftypee= reftype+l;
         refrolee= refrole+l;
@@ -8988,13 +9028,11 @@ return 23;
       oo__ifp->tyid= tyidold;
       }
 
-    // care about possible array overflows
-    if(refide>refidee)
-      WARNv("way %"PRIi64" has too many noderefs.",id)
-    if(refide>refidee)
-      WARNv("relation %"PRIi64" has too many refs.",id)
+    // care about possible array overflows ,,,,,
+    if(refide>=refidee)
+      PERRv("%s %"PRIi64" has too many refs.",ONAME(otype),id)
     if(keye>=keyee)
-      WARNv("%s %"PRIi64" has too many key/val pairs.",
+      PERRv("%s %"PRIi64" has too many key/val pairs.",
         ONAME(otype),id)
 
     // care about diffs and sequence
@@ -9303,6 +9341,8 @@ return 26;
           statistics.way_id_min= id;
         if(statistics.way_id_max==0 || id>statistics.way_id_max)
           statistics.way_id_max= id;
+        if(refide-refid>statistics.noderefs_max)
+          statistics.noderefs_max= refide-refid;
         }
       else if(otype==2) {  // relation
         statistics.relations++;
@@ -9312,6 +9352,8 @@ return 26;
         if(statistics.relation_id_max==0 ||
             id>statistics.relation_id_max)
           statistics.relation_id_max= id;
+        if(refide-refid>statistics.relrefs_max)
+          statistics.relrefs_max= refide-refid;
         }
       if(histime!=0) {  // timestamp valid
         if(statistics.timestamp_min==0 ||
@@ -9321,7 +9363,9 @@ return 26;
             histime>statistics.timestamp_max)
           statistics.timestamp_max= histime;
         }
-      }  // object statistics
+    if(keye-key>statistics.keyval_pairs_max)
+      statistics.keyval_pairs_max= keye-key;
+      }  // object statistics ,,,,,
 
     // abort writing if user does not want any standard output
     if(global_outnone)
@@ -9645,7 +9689,16 @@ return 26;
     if(statistics.relation_id_max!=0)
       fprintf(fi,"relation id max: %"PRIi64"\n",
         statistics.relation_id_max);
-    }  // print statistics
+    if(statistics.keyval_pairs_max!=0)
+      fprintf(fi,"keyval pairs max: %"PRIi32"\n",
+        statistics.keyval_pairs_max);
+    if(statistics.noderefs_max!=0)
+      fprintf(fi,"noderefs max: %"PRIi32"\n",
+        statistics.noderefs_max);
+    if(statistics.relrefs_max!=0)
+      fprintf(fi,"relrefs max: %"PRIi32"\n",
+        statistics.relrefs_max);
+    }  // print statistics ,,,,,
   return oo__error;
   }  // end   oo_main()
 
@@ -10531,6 +10584,12 @@ return 0;
         // define maximum number of objects for --all-to-nodes
       global_maxobjects= oo__strtosint64(a+l);
       if(global_maxobjects<4) global_maxobjects= 4;
+  continue;  // take next parameter
+      }
+    if((l= strzlcmp(a,"--max-refs="))>0 && a[l]!=0) {
+        // define maximum number of references
+      global_maxrefs= oo__strtosint64(a+l);
+      if(global_maxrefs<1) global_maxrefs= 1;
   continue;  // take next parameter
       }
     if((l= strzlcmp(a,"--object-type-offset="))>0 && a[l]!=0) {

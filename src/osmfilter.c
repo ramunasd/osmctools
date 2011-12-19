@@ -1,6 +1,9 @@
-// osmfilter 2011-11-23 00:10
-#define VERSION "1.1K"
+// osmfilter 2011-12-18 00:40
+#define VERSION "1.2H"
 // (c) 2011 Markus Weber, Nuernberg
+//
+// compile this file:
+// gcc osmfilter.c -O3 -o osmfilter
 //
 // This program is free software; you can redistribute it and/or
 // modify it under the terms of the GNU Affero General Public License
@@ -14,6 +17,54 @@
 // Other licenses are available on request; please ask the author.
 
 #define MAXLOGLEVEL 2
+const char* shorthelptext=
+"\nosmfilter " VERSION "  Parameter Overview\n"
+"(Please use  --help  to get more information.)\n"
+"\n"
+"<file>                    file to filter; (.o5m faster than .osm)\n"
+"--keep=                   define which objects are to be kept\n"
+"--keep-nodes=             same as above, but applies to nodes only,\n"
+"--keep-ways=              etc.\n"
+"--keep-relations=              Examples:\n"
+"--keep-nodes-ways=             --keep=\"amenity=pub =bar\"\n"
+"--keep-nodes-relations=        --keep=\"all tunnel=yes lit=yes\"\n"
+"--keep-ways-relations=\n"
+"--drop=                   define which objects are to be dropped\n"
+"--drop-...(see above)=    similar to --keep-...= (see above)\n"
+"--keep-tags=              define which tags are to be kept\n"
+"--keep-node-tags=         same as above, but applies to nodes only,\n"
+"--keep-way-tags=          etc.\n"
+"--keep-relation-tags=\n"
+"--keep-node-way-tags=\n"
+"--keep-node-relation-tags=\n"
+"--keep-way-relation-tags=\n"
+"--drop-tags=              define which tags are to be dropped\n"
+"--drop-...-tags=          similar to --keep-...-tags= (see above)\n"
+"--drop-author             delete changeset and user information\n"
+"--drop-version            same as before, but delete version as well\n"
+"--drop-nodes              delete all nodes\n"
+"--drop-ways               delete all ways\n"
+"--drop-relations          delete all relations\n"
+"--emulate-osmosis         emulate Osmosis XML output format\n"
+"--emulate-pbf2osm         emulate pbf2osm output format\n"
+"--fake-author             set changeset to 1 and timestamp to 1970\n"
+"--fake-version            set version number to 1\n"
+"--fake-lonlat             set lon to 0 and lat to 0\n"
+"-h                        display this parameter overview\n"
+"--help                    display a more detailed help\n"
+"--ignore-dependencies     ignore dependencies between OSM objects\n"
+"--out-key=                write statistics (for the key, if supplied)\n"
+"--out-count=              same as before, but sorted by occurrence\n"
+"--out-osm                 write output in .osm format (default)\n"
+"--out-osc                 write output in .osc format (OSMChangefile)\n"
+"--out-osh                 write output in .osh format (visible-tags)\n"
+"--out-o5m                 write output in .o5m format (fast binary)\n"
+"--out-o5c                 write output in .o5c format (bin. Changef.)\n"
+"--out-pbf                 write output in .pbf format (bin. standard)\n"
+"-o=<outfile>              reroute standard output to a file\n"
+"-t=<tempfile>             define tempfile prefix\n"
+"--parameter-file=<file>   param. in file, separated by empty lines\n"
+"--verbose                 activate verbose mode\n";
 const char* helptext=
 "\nosmfilter " VERSION "\n"
 "\n"
@@ -33,58 +84,58 @@ const char* helptext=
 "The output format is .osm by default. If you want a different format,\n"
 "please specify it using the appropriate command line parameter.\n"
 "\n"
-"--keep=FILTER\n"
+"--keep=OBJECT_FILTER\n"
 "        All object types (nodes, ways and relations) will be kept\n"
 "        if they meet the filter criteria. Same applies to dependent\n"
 "        objects, e.g. nodes in ways, ways in relations, relations in\n"
 "        other relations.\n"
-"        Please look below for a description of the syntax of FILTER.\n"
+"        Please look below for a syntax description of OBJECT_FILTER.\n"
 "\n"
-"--keep-nodes=FILTER\n"
-"--keep-ways=FILTER\n"
-"--keep-relations=FILTER\n"
-"--keep-nodes-ways=FILTER\n"
-"--keep-nodes-relations=FILTER\n"
-"--keep-ways-relations=FILTER\n"
+"--keep-nodes=OBJECT_FILTER\n"
+"--keep-ways=OBJECT_FILTER\n"
+"--keep-relations=OBJECT_FILTER\n"
+"--keep-nodes-ways=OBJECT_FILTER\n"
+"--keep-nodes-relations=OBJECT_FILTER\n"
+"--keep-ways-relations=OBJECT_FILTER\n"
 "        Same as above, but just for the specified object types.\n"
 "\n"
-"--drop=FILTER\n"
+"--drop=OBJECT_FILTER\n"
 "        All object types (nodes, ways and relations) which meet the\n"
 "        supplied filter criteria will be dropped, regardless of\n"
 "        meeting the criteria of a keep filter (see above).\n"
-"        Please look below for a description of the syntax of FILTER.\n"
+"        Please look below for a syntax description of OBJECT_FILTER.\n"
 "\n"
-"--drop-nodes=FILTER\n"
-"--drop-ways=FILTER\n"
-"--drop-relations=FILTER\n"
-"--drop-nodes-ways=FILTER\n"
-"--drop-nodes-relations=FILTER\n"
-"--drop-ways-relations=FILTER\n"
+"--drop-nodes=OBJECT_FILTER\n"
+"--drop-ways=OBJECT_FILTER\n"
+"--drop-relations=OBJECT_FILTER\n"
+"--drop-nodes-ways=OBJECT_FILTER\n"
+"--drop-nodes-relations=OBJECT_FILTER\n"
+"--drop-ways-relations=OBJECT_FILTER\n"
 "        Same as above, but just for the specified object types.\n"
 "\n"
-"--keep-tags=FILTER\n"
-"        The in FILTER specified tags will be allowed on output.\n"
-"        Please look below for a description of the syntax of FILTER.\n"
+"--keep-tags=TAG_FILTER\n"
+"        The in TAG_FILTER specified tags will be allowed on output.\n"
+"        Please look below for a syntax description of TAG_FILTER.\n"
 "\n"
-"--keep-node-tags=FILTER\n"
-"--keep-way-tags=FILTER\n"
-"--keep-relation-tags=FILTER\n"
-"--keep-node-way-tags=FILTER\n"
-"--keep-node-relation-tags=FILTER\n"
-"--keep-way-relation-tags=FILTER\n"
+"--keep-node-tags=TAG_FILTER\n"
+"--keep-way-tags=TAG_FILTER\n"
+"--keep-relation-tags=TAG_FILTER\n"
+"--keep-node-way-tags=TAG_FILTER\n"
+"--keep-node-relation-tags=TAG_FILTER\n"
+"--keep-way-relation-tags=TAG_FILTER\n"
 "        Same as above, but just for the specified object types.\n"
 "\n"
-"--drop-tags=FILTER\n"
+"--drop-tags=TAG_FILTER\n"
 "        The specified tags will be dropped. This overrules the\n"
 "        previously described parameter --keep-tags.\n"
-"        Please look below for a description of the syntax of FILTER.\n"
+"        Please look below for a syntax description of TAG_FILTER.\n"
 "\n"
-"--drop-node-tags=FILTER\n"
-"--drop-way-tags=FILTER\n"
-"--drop-relation-tags=FILTER\n"
-"--drop-node-way-tags=FILTER\n"
-"--drop-node-relation-tags=FILTER\n"
-"--drop-way-relation-tags=FILTER\n"
+"--drop-node-tags=TAG_FILTER\n"
+"--drop-way-tags=TAG_FILTER\n"
+"--drop-relation-tags=TAG_FILTER\n"
+"--drop-node-way-tags=TAG_FILTER\n"
+"--drop-node-relation-tags=TAG_FILTER\n"
+"--drop-way-relation-tags=TAG_FILTER\n"
 "        Same as above, but just for the specified object types.\n"
 "\n"
 "--drop-author\n"
@@ -127,6 +178,9 @@ const char* helptext=
 "        Note that this is for XML files only (.osc and .osh).\n"
 "\n"
 "-h\n"
+"        Display a short parameter overview.\n"
+"\n"
+"--help\n"
 "        Display this help.\n"
 "\n"
 "--ignore-dependencies\n"
@@ -141,6 +195,8 @@ const char* helptext=
 "        each key, the number of occurrences is printed.\n"
 "        If KEYNAME is given, the program will list all values which\n"
 "        are used in connections with this key.\n"
+"        You may use wildcard characters for KEYNAME, but only at the\n"
+"        beginning and/or at the end. For example:  --out-key=addr:*\n"
 "\n"
 "--out-count=KEYNAME\n"
 "        Same as --out-key=, but the list is sorted by the number of\n"
@@ -170,6 +226,16 @@ const char* helptext=
 "        <delete> tags will not be performed as delete actions but\n"
 "        converted into .o5c data format.\n"
 "\n"
+"-o=<outfile>\n"
+"        Standard output will be rerouted to the specified file.\n"
+"        If no output format has been specified, the program will\n"
+"        proceed according to the file name extension.\n"
+"\n"
+"-t=<tempfile>\n"
+"        osmfilter uses a temporary file to process interrelational\n"
+"        dependencies. This parameter defines the name prefix. The\n"
+"        default value is \"osmfilter_tempfile\".\n"
+"\n"
 "--parameter-file=FILE\n"
 "        If you want to supply one ore more command line arguments\n"
 "        by a parameter file, please use this option and specify the\n"
@@ -185,34 +251,51 @@ const char* helptext=
 "        If -v resp. --verbose is the first parameter in the line,\n"
 "        osmfilter will display all input parameters.\n"
 "\n"
-"FILTER\n"
-"        Some of the command line arguments need a FILTER to be\n"
+"OBJECT_FILTER\n"
+"        Some of the command line arguments need a filter to be\n"
 "        specified. This filter definition consists of key/val pairs\n"
 "        and uses the following syntax:\n"
-"          \"KEY1=VAL1 KEY2=VAL2 KEY3=VAL3 ...\"\n"
+"          \"KEY1=VAL1 OP KEY2=VAL2 OP KEY3=VAL3 ...\"\n"
+"        OP is the Boolean operator, it must be either \"and\" or \"or\".\n"
+"        As usual, \"and\" will be processed prior to \"or\". If you\n"
+"        want to influence the sequence of processing, you may use\n"
+"        brackets to do so. Please note that brackets always must be\n"
+"        padded by spaces. Example: lit=yes and ( note=a or source=b )\n"
+"        Instead of each \"=\" you may enter one of these comparison\n"
+"        operators: != (not equal), <, >, <=, >=\n"
+"        The program will use ASCII-alphabetic comparison unless you\n" "        compare against a value which is starting with a digit.\n"
 "        If there are different possible values for the same key, you\n"
 "        need to write the key only once. For example:\n"
 "          \"amenity=restaurant =pub =bar\"\n"
-"        If you want all conditions to be met, please start the filter\n"
-"        definition with the word \"all\". For example:\n"
-"          \"all amenity=restaurant cuisine=italian =danish\"\n"
 "        It is allowed to omit the value. In this case, the program\n"
 "        will accept every value for the defined key. For example:\n"
 "          \"all highway= lit=yes\"\n"
 "        You may use wildcard characters for key or value, but only at\n"
 "        the beginning and/or at the end. For example:\n"
-"          wikipedia:*=  highway=*ary  ref_name=*freight*\n"
-"        Besides, this wildcard is also applicable to the KEYNAME of\n"
-"        of statistic functions mentioned above.\n"
+"          wikipedia:*=  highway=*ary  ref_name=*central*\n"
+"        Please be careful with wildcards in keys since only the first\n"
+"        key which meets the pattern will be processed.\n"
 "        There are three special keys which represent object id, user\n"
 "        id and user name: @id, @uid and @user. They allow you to\n"
 "        search for certain objects or for edits of specific users.\n"
 "\n"
+"TAG_FILTER\n"
+"        The tag filter determines which tags will be kept and which\n"
+"        will be not. The example\n"
+"          --keep-tags=highway=motorway =primary\n"
+"        will not accept \"highway\" tags other than \"motorway\" or\n"
+"        \"primary\". Note that neither the object itself will be\n"
+"        deleted, nor the remaining tags. If you want to drop every\n"
+"        tag which is not mentioned in a list, use this example:\n"
+"          all highway= amenity= name=\n"
+"\n"
 "Examples\n"
 "\n"
-"./osmfilter europe.o5m --keep=amenity=bar --out-o5m>new.osm\n"
-"./osmfilter a.osm --keep-nodes=lit=yes --drop-ways>light.osm\n"
-"./osmfilter a.osm --keep=\"all bridge=yes highway=primary\" >b.osm\n"
+"./osmfilter europe.o5m --keep=amenity=bar -o=new.o5m\n"
+"./osmfilter a.osm --keep-nodes=lit=yes --drop-ways -o=light.osm\n"
+"./osmfilter a.osm --keep=\"\n"
+"    place=city or ( place=town and population>=10000 )\" -o=b.osm\n"
+"./osmfilter region.o5m --keep=\"bridge=yes and layer>=2\" -o=r.o5m\n"
 "\n"
 "Tuning\n"
 "\n"
@@ -262,10 +345,6 @@ const char* helptext=
 "The number of key/val pairs in each filter parameter is limited to\n"
 "1000, the length of each key or val is limited to 100.\n"
 "\n"
-"\n"
-"Presently, this program is in an experimental state. Please expect\n"
-"errors and do not use the program in productive or commercial systems.\n"
-"\n"
 "There is NO WARRANTY, to the extent permitted by law.\n"
 "Please send any bug reports to markus.weber@gmx.com\n\n";
 
@@ -284,6 +363,44 @@ typedef enum {false= 0,true= 1} bool;
 typedef uint8_t byte;
 typedef unsigned int uint;
 #define isdig(x) isdigit((unsigned char)(x))
+static byte isdigi_tab[]= {
+  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+  1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,
+  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
+#define isdigi(c) (isdigi_tab[(c)])  // digit
+static byte digival_tab[]= {
+  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+  1,2,3,4,5,6,7,8,9,10,0,0,0,0,0,0,
+  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
+#define digival(c) (digival_tab[(c)])
+  // value of a digit, starting with 1, for comparisons only
+
 static int loglevel= 0;  // logging to stderr;
   // 0: no logging; 1: small logging; 2: normal logging;
   // 3: extended logging;
@@ -318,6 +435,7 @@ static bool global_dropways= false;  // exclude ways section
 static bool global_droprelations= false;  // exclude relations section
 static bool global_outo5m= false;  // output shall have .o5m format
 static bool global_outo5c= false;  // output shall have .o5c format
+static bool global_outosm= false;  // output shall have .osm format
 static bool global_outosc= false;  // output shall have .osc format
 static bool global_outosh= false;  // output shall have .osh format
 static const char* global_outkey= NULL;
@@ -336,11 +454,11 @@ static char global_tempfilename[350]= "osmfilter_tempfile";
 static bool global_recursive= false;  // recursive processing necessary
 static bool global_ignoredependencies= false;
   // user wants interobject dependencies to be ignored
-#define PERR(f) \
-  fprintf(stderr,"osmfilter Error: " f "\n");
+#define PERR(f) { static int msgn= 3; if(--msgn>=0) \
+  fprintf(stderr,"osmfilter Error: " f "\n"); }
   // print error message
-#define PERRv(f,...) \
-  fprintf(stderr,"osmfilter Error: " f "\n",__VA_ARGS__);
+#define PERRv(f,...) { static int msgn= 3; if(--msgn>=0) \
+  fprintf(stderr,"osmfilter Error: " f "\n",__VA_ARGS__); }
   // print error message with value(s)
 #define WARN(f) { static int msgn= 3; if(--msgn>=0) \
   fprintf(stderr,"osmfilter Warning: " f "\n"); }
@@ -350,6 +468,8 @@ static bool global_ignoredependencies= false;
   // print a warning message with value(s), do it maximal 3 times
 #define PINFO(f) \
   fprintf(stderr,"osmfilter: " f "\n"); // print info message
+#define PINFOv(f,...) \
+  fprintf(stderr,"osmfilter: " f "\n",__VA_ARGS__);
 #define ONAME(i) \
   (i==0? "node": i==1? "way": i==2? "relation": "unknown object")
 #define global_fileM 1  // maximum number of input files
@@ -510,6 +630,25 @@ static inline int strzlcmp(const char* s1,const char* s2) {
     return s2-s2a;
   return 0;
   }  // end   strzlcmp()
+
+static inline int strycmp(const char* s1,const char* s2) {
+  // similar to strcmp(), this procedure compares two character strings;
+  // here, both strings are end-aligned;
+  // not more characters will be compared than are existing in string s2;
+  // i.e., this procedure can be used to identify a file name extension;
+  const char* s1e;
+  int l;
+
+  l= strchr(s2,0)-s2;
+  s1e= strchr(s1,0);
+  if(s1e-s1<l)
+return 1;
+  s1= s1e-l;
+  while(*s1==*s2 && *s1!=0) { s1++; s2++; }
+  if(*s2==0)
+    return 0;
+  return *(unsigned char*)s1 < *(unsigned char*)s2? -1: 1;
+  }  // end   strycmp()
 
 
 
@@ -1079,6 +1218,16 @@ static char* write__bufp= write__buf;
 static int write__fd= 1;  // (initially standard output)
 static inline void write_flush();
 
+static void write__end() {
+  // terminate the services of this module;
+  if(write__fd>1) {  // not standard output
+    if(loglevel>=2)
+      fprintf(stderr,"Write-closing FD: %i\n",write__fd);
+    close(write__fd);
+    write__fd= 1;
+    }
+  }  // end   write__end()
+
 //------------------------------------------------------------
 
 static bool write_testmode= false;  // no standard output
@@ -1091,6 +1240,34 @@ static inline void write_flush() {
       write(write__fd,write__buf,write__bufp-write__buf)<0;
   write__bufp= write__buf;
   }  // end   write_flush();
+
+static int write_open(const char* filename) {
+  // open standard output file;
+  // filename: name of the output file;
+  //           this string must be accessible until program end;
+  //           ==NULL: standard output;
+  // this procedure must be called before any output is done;
+  // return: 0: OK; !=0: error;
+  static bool firstrun= true;
+
+  if(loglevel>=2)
+    fprintf(stderr,"Write-opening: %s\n",
+      filename==NULL? "stdout": filename);
+  if(filename!=NULL) {  // not standard output
+    write__fd= open(filename,
+      O_WRONLY|O_CREAT|O_TRUNC|O_BINARY,00600);
+    if(write__fd<1) {
+      PERRv("could not open output file: %.80s\n",filename)
+      write__fd= 1;
+return 1;
+      }
+    }
+  if(firstrun) {
+    firstrun= false;
+    atexit(write__end);
+    }
+  return 0;
+  }  // end   write_open()
 
 static inline void write_char(int c) {
   // write one byte to stdout, use a buffer;
@@ -1716,12 +1893,10 @@ static void count_write() {
 // the sections of private and public definitions are separated
 // by a horizontal line: ----
 
-#if 0
 static inline void fil_stresccpy(char *dest, const char *src,
     size_t len) {
   // similar as strmpy(), but remove every initial '\\' character;
   // len: length of the source string - without terminating zero;
-  if(*src=='*') { src++; *dest++= '\x01'; }
   while(len>0) {
     if(*src=='\\') { src++; len--; }
     if(!(len>0) || *src==0)
@@ -1731,61 +1906,387 @@ static inline void fil_stresccpy(char *dest, const char *src,
     }
   *dest= 0;
   }  // end   fil_stresccpy()
-#endif
-
-static inline void fil_strescwildcpy(char *dest, const char *src,
-    size_t len) {
-  // similar as strmpy(), but remove every initial '\\' character;
-  // len: length of the source string - without terminating zero;
-  // unescaped '*' at beginning and end will be converted to '\x01',
-  // because they are to be treated as wildcards later;
-  const char* p;
-
-  p= src+len;  //,,,
-  if(*src=='*') { src++; *dest++= '\x01'; }
-  if(p>src && p[-1]=='*')
-    if(p<=src+1 || p[-2]!='\\')
-      p= NULL;  // memorize that there is a wildcard at the end
-  while(len>0) {
-    if(*src=='\\') { src++; len--; }
-    if(!(len>0) || *src==0)
-  break;
-    len--;
-    *dest++= *src++;
-    }
-  *dest= 0;
-  if(p==NULL)
-    dest[-1]= '\x01';
-  }  // end   fil_strescwildcpy()
 
 static inline bool fil__cmp(const char* s1,const char* s2) {
   // this procedure compares two character strings;
-  // here, the second string may contain wildcards ('\x01') at its
-  // beginning and/or at its end;
   // s1[]: first string;
-  // s2[]: string to compare with the first string;
-  // return:
-  // true: both strings are identical (possible wildcards have been
-  //       considered);
-  // false: the strings are different;
-  if(*s2!='\x01') {
-    while(*s1==*s2 && *s1!=0) { s1++; s2++; }
-    if((*s1==0 && *s2==0) || (*s2=='\x01' && s2[1]==0))
-return true;
-    }
-  else {  // there is a wildcard at the beginning of s2[]
-    const char* s11,*s22;
+  // s2[0]: operator which shall be used for comparison;
+  //         0: '=', and there are wildcards coded in s2[1]:
+  //                 s2[1]==1: wildcard at start;
+  //                 s2[1]==2: wildcard at end;
+  //                 s2[1]==3: wildcard at both, start and end;
+  //         1: '!=', and there are wildcards coded in s2[1];
+  //         2: '='
+  //         4: '<'
+  //         5: '>='
+  //         6: '>'
+  //         7: '<='
+  //         8: unused
+  //         9: unused
+  //        10: '=', numeric
+  //        11: '!=', numeric
+  //        12: '<', numeric
+  //        13: '>=', numeric
+  //        14: '>', numeric
+  //        15: '<=', numeric
+  // s2+1: string to compare with the first string;
+  //       this string will start at s2+2 if wildcards are supplied;
+  // return: condition is met;
+  int op,wc;  // operator, wildcard flags
+  int diff;  // (for numeric comparison)
+  unsigned char s1v,s2v;  // (for numeric comparison)
+  bool ret;
 
-    s2++;
-    while(*s1!=0) {  // for all start positions in s1[]
-      s11= s1; s22= s2;
-      while(*s11==*s22 && *s11!=0) { s11++; s22++; }
-      if((*s11==0 && *s22==0) || (*s22=='\x01' && s22[1]==0))
-return true;
-      s1++;
-      }  // for all start positions in s1[]
+  op= *s2++;
+  if(op==2) { // '='
+    // we first care about this because it's the most frequently used option
+    while(*s1==*s2 && *s1!=0) { s1++; s2++; }
+    return *s1==0 && *s2==0;
     }
-  return false;
+  switch(op) {  // depending on comparison operator
+  case 0:  // '=', and there are wildcards
+    wc= *s2++;
+    if(wc==2) {  // wildcard at end
+      while(*s1==*s2 && *s1!=0) { s1++; s2++; }
+      return *s2==0;
+      }  // wildcard at end
+    if(wc==1) {  // wildcard at start
+      const char* s11,*s22;
+
+      ret= false;  // (default)
+      while(*s1!=0) {  // for all start positions in s1[]
+        s11= s1; s22= s2;
+        while(*s11==*s22 && *s11!=0) { s11++; s22++; }
+        if(*s11==0 && *s22==0)
+          return true;
+        s1++;
+        }  // for all start positions in s1[]
+      return false;
+      }  // wildcard at start
+    /* wildcards at start and end */ {
+      const char* s11,*s22;
+
+      ret= false;  // (default)
+      while(*s1!=0) {  // for all start positions in s1[]
+        s11= s1; s22= s2;
+        while(*s11==*s22 && *s11!=0) { s11++; s22++; }
+        if(*s22==0)
+          return true;
+        s1++;
+        }  // for all start positions in s1[]
+      return false;
+      }  // wildcards at start and end
+  case 1:  // '!=', and there are wildcards
+    wc= *s2++;
+    if(wc==2) {  // wildcard at end
+      while(*s1==*s2 && *s1!=0) { s1++; s2++; }
+      return *s2!=0;
+      }  // wildcard at end
+    if(wc==1) {  // wildcard at start
+      const char* s11,*s22;
+
+      ret= false;  // (default)
+      while(*s1!=0) {  // for all start positions in s1[]
+        s11= s1; s22= s2;
+        while(*s11==*s22 && *s11!=0) { s11++; s22++; }
+        if(*s11==0 && *s22==0)
+          return false;
+        s1++;
+        }  // for all start positions in s1[]
+      return true;
+      }  // wildcard at start
+    /* wildcards at start and end */ {
+      const char* s11,*s22;
+
+      ret= false;  // (default)
+      while(*s1!=0) {  // for all start positions in s1[]
+        s11= s1; s22= s2;
+        while(*s11==*s22 && *s11!=0) { s11++; s22++; }
+        if(*s22==0)
+          return false;
+        s1++;
+        }  // for all start positions in s1[]
+      return true;
+      }  // wildcards at start and end
+  //case 2:  // '='  (we already cared about this)
+  case 3:  // '!='
+    while(*s1==*s2 && *s1!=0) { s1++; s2++; }
+    return *s1!=0 || *s2!=0;
+  case 4:  // '<'
+    while(*s1==*s2 && *s1!=0) { s1++; s2++; }
+    return *(unsigned char*)s1 < *(unsigned char*)s2;
+  case 5:  // '>='
+    while(*s1==*s2 && *s1!=0) { s1++; s2++; }
+    return *(unsigned char*)s1 >= *(unsigned char*)s2;
+  case 6:  // '>'
+    while(*s1==*s2 && *s1!=0) { s1++; s2++; }
+    return *(unsigned char*)s1 > *(unsigned char*)s2;
+  case 7:  // '<='
+    while(*s1==*s2 && *s1!=0) { s1++; s2++; }
+    return *(unsigned char*)s1 <= *(unsigned char*)s2;
+  case 10:  // '=', numeric
+    while(*s1=='0') s1++;
+    while(*s2=='0') s2++;
+    while(*s1==*s2 && isdigi(*(unsigned char*)s1))
+      { s1++; s2++; }
+    if(*s1=='.') {
+      if(*s2=='.') {
+        do { s1++; s2++; }
+          while(*s1==*s2 && isdigi(*(unsigned char*)s1));
+        if(!isdigi(*(unsigned char*)s1)) {
+          while(*s2=='0') s2++;
+          return !isdigi(*(unsigned char*)s2);
+          }
+        if(!isdigi(*(unsigned char*)s2)) {
+          while(*s1=='0') s1++;
+          return !isdigi(*(unsigned char*)s1);
+          }
+        return !isdigi(*(unsigned char*)s1) &&
+          !isdigi(*(unsigned char*)s2);
+        }
+      do s1++;
+        while(*s1=='0');
+      return !isdigi(*(unsigned char*)s1);
+      }
+    if(*s2=='.') {
+      do s2++;
+        while(*s2=='0');
+      return !isdigi(*(unsigned char*)s2);
+      }
+    return !isdigi(*(unsigned char*)s1) && !isdigi(*(unsigned char*)s2);
+  case 11:  // '!=', numeric
+    while(*s1=='0') s1++;
+    while(*s2=='0') s2++;
+    while(*s1==*s2 && isdigi(*(unsigned char*)s1))
+      { s1++; s2++; }
+    if(*s1=='.') {
+      if(*s2=='.') {
+        do { s1++; s2++; }
+          while(*s1==*s2 && isdigi(*(unsigned char*)s1));
+        if(!isdigi(*(unsigned char*)s1)) {
+          while(*s2=='0') s2++;
+          return isdigi(*(unsigned char*)s2);
+          }
+        if(!isdigi(*(unsigned char*)s2)) {
+          while(*s1=='0') s1++;
+          return isdigi(*(unsigned char*)s1);
+          }
+        return isdigi(*(unsigned char*)s1) ||
+          isdigi(*(unsigned char*)s2);
+        }
+      do s1++;
+        while(*s1=='0');
+      return isdigi(*(unsigned char*)s1);
+      }
+    if(*s2=='.') {
+      do s2++;
+        while(*s2=='0');
+      return isdigi(*(unsigned char*)s2);
+      }
+    return isdigi(*(unsigned char*)s1) || isdigi(*(unsigned char*)s2);
+  case 12:  /* '<', numeric */
+    #define Ds1 s1
+    #define Ds2 s2
+    s1v= *(unsigned char*)Ds1; s2v= *(unsigned char*)Ds2;
+    if(s1v=='-') {
+      if(s2v=='-') {
+        Ds1++; s2v= *(unsigned char*)Ds1;
+        Ds2++; s1v= *(unsigned char*)Ds2;
+        goto op_14;
+        }
+      return true;
+      }
+    else if(s2v=='-')
+      return false;
+    op_12:
+    while(s1v=='0') { Ds1++; s1v= *(unsigned char*)Ds1; }
+    while(s2v=='0') { Ds2++; s2v= *(unsigned char*)Ds2; }
+    while(s1v==s2v && isdigi(s1v)) {
+      Ds1++; s1v= *(unsigned char*)Ds1;
+      Ds2++; s2v= *(unsigned char*)Ds2;
+      }
+    diff= digival(s1v)-digival(s2v);
+    while(isdigi(s1v) && isdigi(s2v)) {
+      Ds1++; s1v= *(unsigned char*)Ds1;
+      Ds2++; s2v= *(unsigned char*)Ds2;
+      }
+    if(s1v=='.') {
+      if(s2v=='.') {
+        if(diff!=0)
+          return diff<0;
+        do {
+          Ds1++; s1v= *(unsigned char*)Ds1;
+          Ds2++; s2v= *(unsigned char*)Ds2;
+          } while(s1v==s2v && isdigi(s1v));
+        while(s2v=='0') { Ds2++; s2v= *(unsigned char*)Ds2; }
+        return digival(s1v) < digival(s2v);
+        }
+      return isdigi(s2v) || diff<0;
+      }
+    if(s2v=='.') {
+      if(isdigi(s1v))
+        return false;
+      if(diff!=0)
+        return diff<0;
+      do { Ds2++; s2v= *(unsigned char*)Ds2; } while(s2v=='0');
+      return isdigi(s2v);
+      }
+    return isdigi(s2v) || (!isdigi(s1v) && diff<0);
+    #undef Ds1
+    #undef Ds2
+  case 13:  /* '>=', numeric */
+    #define Ds1 s1
+    #define Ds2 s2
+    s1v= *(unsigned char*)Ds1; s2v= *(unsigned char*)Ds2;
+    if(s1v=='-') {
+      if(s2v=='-') {
+        Ds1++; s2v= *(unsigned char*)Ds1;
+        Ds2++; s1v= *(unsigned char*)Ds2;
+        goto op_15;
+        }
+      return false;
+      }
+    else if(s2v=='-')
+      return true;
+    op_13:
+    while(s1v=='0') { Ds1++; s1v= *(unsigned char*)Ds1; }
+    while(s2v=='0') { Ds2++; s2v= *(unsigned char*)Ds2; }
+    while(s1v==s2v && isdigi(s1v)) {
+      Ds1++; s1v= *(unsigned char*)Ds1;
+      Ds2++; s2v= *(unsigned char*)Ds2;
+      }
+    diff= digival(s1v)-digival(s2v);
+    while(isdigi(s1v) && isdigi(s2v)) {
+      Ds1++; s1v= *(unsigned char*)Ds1;
+      Ds2++; s2v= *(unsigned char*)Ds2;
+      }
+    if(s1v=='.') {
+      if(s2v=='.') {
+        if(diff!=0)
+          return diff>=0;
+        do {
+          Ds1++; s1v= *(unsigned char*)Ds1;
+          Ds2++; s2v= *(unsigned char*)Ds2;
+          } while(s1v==s2v && isdigi(s1v));
+        while(s2v=='0') { Ds2++; s2v= *(unsigned char*)Ds2; }
+        return digival(s1v) >= digival(s2v);
+        }
+      return !isdigi(s2v) && diff>=0;
+      }
+    if(s2v=='.') {
+      if(isdigi(s1v))
+        return true;
+      if(diff!=0)
+        return diff>=0;
+      do { Ds2++; s2v= *(unsigned char*)Ds2; } while(s2v=='0');
+      return !isdigi(s2v);
+      }
+    return !isdigi(s2v) && (isdigi(s1v) || diff>=0);
+    #undef Ds1
+    #undef Ds2
+  case 14:  /* '>', numeric */
+    #define Ds1 s2
+    #define Ds2 s1
+    s1v= *(unsigned char*)Ds1; s2v= *(unsigned char*)Ds2;
+    if(s1v=='-') {
+      if(s2v=='-') {
+        Ds1++; s2v= *(unsigned char*)Ds1;
+        Ds2++; s1v= *(unsigned char*)Ds2;
+        goto op_12;
+        }
+      return true;
+      }
+    else if(s2v=='-')
+      return false;
+    op_14:
+    while(s1v=='0') { Ds1++; s1v= *(unsigned char*)Ds1; }
+    while(s2v=='0') { Ds2++; s2v= *(unsigned char*)Ds2; }
+    while(s1v==s2v && isdigi(s1v)) {
+      Ds1++; s1v= *(unsigned char*)Ds1;
+      Ds2++; s2v= *(unsigned char*)Ds2;
+      }
+    diff= digival(s1v)-digival(s2v);
+    while(isdigi(s1v) && isdigi(s2v)) {
+      Ds1++; s1v= *(unsigned char*)Ds1;
+      Ds2++; s2v= *(unsigned char*)Ds2;
+      }
+    if(s1v=='.') {
+      if(s2v=='.') {
+        if(diff!=0)
+          return diff<0;
+        do {
+          Ds1++; s1v= *(unsigned char*)Ds1;
+          Ds2++; s2v= *(unsigned char*)Ds2;
+          } while(s1v==s2v && isdigi(s1v));
+        while(s2v=='0') { Ds2++; s2v= *(unsigned char*)Ds2; }
+        return digival(s1v) < digival(s2v);
+        }
+      return isdigi(s2v) || diff<0;
+      }
+    if(s2v=='.') {
+      if(isdigi(s1v))
+        return false;
+      if(diff!=0)
+        return diff<0;
+      do { Ds2++; s2v= *(unsigned char*)Ds2; } while(s2v=='0');
+      return isdigi(s2v);
+      }
+    return isdigi(s2v) || (!isdigi(s1v) && diff<0);
+    #undef Ds1
+    #undef Ds2
+  case 15:  /* '<=', numeric */
+    #define Ds1 s2
+    #define Ds2 s1
+    s1v= *(unsigned char*)Ds1; s2v= *(unsigned char*)Ds2;
+    if(s1v=='-') {
+      if(s2v=='-') {
+        Ds1++; s2v= *(unsigned char*)Ds1;
+        Ds2++; s1v= *(unsigned char*)Ds2;
+        goto op_13;
+        }
+      return false;
+      }
+    else if(s2v=='-')
+      return true;
+    op_15:
+    while(s1v=='0') { Ds1++; s1v= *(unsigned char*)Ds1; }
+    while(s2v=='0') { Ds2++; s2v= *(unsigned char*)Ds2; }
+    while(s1v==s2v && isdigi(s1v)) {
+      Ds1++; s1v= *(unsigned char*)Ds1;
+      Ds2++; s2v= *(unsigned char*)Ds2;
+      }
+    diff= digival(s1v)-digival(s2v);
+    while(isdigi(s1v) && isdigi(s2v)) {
+      Ds1++; s1v= *(unsigned char*)Ds1;
+      Ds2++; s2v= *(unsigned char*)Ds2;
+      }
+    if(s1v=='.') {
+      if(s2v=='.') {
+        if(diff!=0)
+          return diff>=0;
+        do {
+          Ds1++; s1v= *(unsigned char*)Ds1;
+          Ds2++; s2v= *(unsigned char*)Ds2;
+          } while(s1v==s2v && isdigi(s1v));
+        while(s2v=='0') { Ds2++; s2v= *(unsigned char*)Ds2; }
+        return digival(s1v) >= digival(s2v);
+        }
+      return !isdigi(s2v) && diff>=0;
+      }
+    if(s2v=='.') {
+      if(isdigi(s1v))
+        return true;
+      if(diff!=0)
+        return diff>=0;
+      do { Ds2++; s2v= *(unsigned char*)Ds2; } while(s2v=='0');
+      return !isdigi(s2v);
+      }
+    return !isdigi(s2v) && (isdigi(s1v) || diff>=0);
+    #undef Ds1
+    #undef Ds2
+  // (no default)
+    }  // depending on comparison operator
+  return false;  // (we never get here)
   }  // end   fil__cmp()
 
 #define fil__pairM 1000  // maximum number of key-val-pairs
@@ -1806,12 +2307,22 @@ return true;
   // 11:  drop relation tag;
 typedef struct {  // key/val pair for the include filter
   char k[fil__pairkM+8];  // key to compare;
-    // "": same key as previous key in list;
+    // [0]==0 && [1]==0: same key as previous key in list;
   char v[fil__pairkM+8];  // value to the key in .k[];
-    // "": any value will be accepted;
+    // the first byte represents a comparison operator,
+    // see parameter s2[]in fil__cmp() for details;
+    // [0]==0 && [1]==0: any value will be accepted;
+  int left_bracketn;
+    // number of opening brackets right before the comparison
+  int right_bracketn;
+    // number of closing brackets right after the comparison
+  bool operator;
+    // Boolean operator right after the closing bracket, resp.
+    // right after the comparison, if there is no closing bracket;
+    // false: OR; true: AND;
   } fil__pair_t;
-static fil__pair_t fil__pair[fil__pairtM][fil__pairM];
-
+static fil__pair_t fil__pair[fil__pairtM][fil__pairM+2]=
+  {{{{0},{0},0,0,false}}};
 static fil__pair_t* fil__paire[fil__pairtM]=
   { &fil__pair[0][0],&fil__pair[1][0],
     &fil__pair[2][0],&fil__pair[3][0],
@@ -1826,8 +2337,72 @@ static fil__pair_t* fil__pairee[fil__pairtM]=
     &fil__pair[6][fil__pairM],&fil__pair[7][fil__pairM],
     &fil__pair[8][fil__pairM],&fil__pair[9][fil__pairM],
     &fil__pair[10][fil__pairM],&fil__pair[11][fil__pairM] };
+static int fil__err_tagsbool= 0;
+  // number of Boolean expressions in tags filter
+static int fil__err_tagsbracket= 0;
+  // number of brackets in tags filter
 
 //------------------------------------------------------------
+
+static inline void fil_cpy(char *dest, const char *src,
+    size_t len,int op) {
+  // similar as strmpy(), but remove every initial '\\' character;
+  // len: length of the source string - without terminating zero;
+  // op: comparison operator;
+  //         2: '='
+  //         4: '<'
+  //         5: '>='
+  //         6: '>'
+  //         7: '<='
+  // return: dest[0]: comparison operator; additional possible values:
+  //         0: '=', and there are wildcards coded in dest[1]:
+  //                 dest[1]==1: wildcard at start;
+  //                 dest[1]==2: wildcard at end;
+  //                 dest[1]==3: wildcard at both, start and end;
+  //         1: '!=', and there are wildcards coded in dest[1];
+  //        10: '=', numeric
+  //        11: '!=', numeric
+  //        12: '<', numeric
+  //        13: '>=', numeric
+  //        14: '>', numeric
+  //        15: '<=', numeric
+  int wc;  // wildcard indicator, see fil__cmp()
+
+  if(op<0) {  // unknown operator
+    WARNv("unknown comparison at: %.80s",src)
+    op= 2;  // assume '='
+    }
+  if(len>(fil__pairkM)) {
+    len= fil__pairkM;  // delimit value length
+    WARNv("filter argument too long: %.*s",fil__pairkM,src)
+    }
+  wc= 0;  // (default)
+  if(len>=2 && src[0]=='*') {  // wildcard at start
+    wc|= 1;
+    src++; len--;
+    }
+  if((len>=2 && src[len-1]=='*' && src[len-2]!='\\') ||
+      (len==1 && src[len-1]=='*')) {
+      // wildcard at end
+    wc|= 2;
+    len--;
+    }
+  if(wc==0) {  // no wildcard(s)
+    const char* v;
+
+    v= src;
+    if(*v=='-') v++;  // jump over sign
+    if(isdig(*v))  // numeric value
+      op+= 8;
+    dest[0]= op;
+    fil_stresccpy(dest+1,src,len);  // store this value
+    }  // no wildcard(s)
+  else {  // wildcard(s)
+    dest[0]= op&1;
+    dest[1]= wc;
+    fil_stresccpy(dest+2,src,len);  // store this value
+    }  // wildcard(s)
+  }  // end   fil_cpy()
 
 static bool fil_active[fil__pairtM]=
     {false,false,false,false,false,false,
@@ -1855,32 +2430,54 @@ static bool fil_filterheader= false;
   // OSM object header values must be checked;
   // this value must not be changed from outside the module;
 
-static void fil_set(int ftype,const char* arg) {
+static void fil_ini() {
+  // initialize this mudule;
+  // (this procedure is not speed-optimized)
+  int i;
+
+  //memset(fil__pair,0,sizeof(fil__pair));
+  for(i= 0; i<fil__pairtM; i++) {
+    fil__paire[i]= &fil__pair[i][0];
+    fil__pairee[i]= &fil__pair[i][fil__pairM];
+    fil_active[i]= false;
+    fil_activeo[i/4]= false;
+    fil_meetall[i]= false;
+    fil__pair[i][0].left_bracketn= 0;
+    }
+  fil__err_tagsbool= fil__err_tagsbracket= 0;
+  fil_filterheader= false;
+  }  // fil_ini()
+
+static void fil_parse(int ftype,const char* arg) {
   // interprets a command line argument and stores filter information;
+  // Boolean terms are recognized;
   // ftype: filter type; see explanation at fil__pairtM;
   // arg[]: filter information; e.g.:
-  //        "amenity=restaurant name=John"
-  //        "cuisine=fish"
+  //        "amenity=restaurant && name=John =Meyer"
   fil__pair_t* fp,*fe,*fee;
   const char* pk,*pv,*pe;  // pointers in parameter for key/val pairs;
     // pk: key; pv: val; pe: end of val;
+  bool meetall;  // same as fil_meetall[ftype]
   int len;  // string length
+  int argop;  // argument operator; 0: unknown; '&', '|', '(', ')';
+  int op;  // operator, see fil__cmp()
 
-  fp= &fil__pair[ftype][0];
+  fp= fil__pair[ftype];
   fe= fil__paire[ftype];
   fee= fil__pairee[ftype];
   if(loglevel>0)
-    fprintf(stderr,"osmfilter Filter: %s %s%s\n",
+    PINFOv("Filter: %s %s%s:",
       ftype/3%2==0? "keep": "drop",ONAME(ftype%3),
-      ftype<6? "s": " tags");
+      ftype<6? "s": " tags")
   pk= arg;
   while(*pk==' ') pk++;  // jump over spaces
   if(strzcmp(pk,"all ")==0 || strzcmp(pk,"and ")==0) {
     if(loglevel>0)
-      fprintf(stderr,"osmfilter Filter: meet all conditions.\n");
+      PINFO("Filter: meet all conditions.")
     fil_meetall[ftype]= true;
     pk+= 4;
     }
+  meetall= fil_meetall[ftype];
   while(pk!=NULL && fe<fee) {  // for every key/val pair
     while(*pk==' ') pk++;  // jump over (additional) spaces
     if(*pk==0)
@@ -1888,38 +2485,123 @@ static void fil_set(int ftype,const char* arg) {
     pe= pk;
     while((*pe!=' ' || pe[-1]=='\\') && *pe!=0) pe++;
       // get end of this pair
+    len= pe-pk;  // length of this argument
+    argop= 0;  // (default)
+    if(len==2 && strzcmp(pk,"&&")==0) argop= '&';
+    else if(len==2 && strzcmp(pk,"||")==0) argop= '|';
+    else if(len==3 && strzcmp(pk,"AND")==0) argop= '&';
+    else if(len==2 && strzcmp(pk,"OR")==0) argop= '|';
+    else if(len==3 && strzcmp(pk,"and")==0) argop= '&';
+    else if(len==2 && strzcmp(pk,"or")==0) argop= '|';
+    else if(len==1 && strzcmp(pk,"(")==0) argop= '(';
+    else if(len==1 && strzcmp(pk,")")==0) argop= ')';
+    if(argop!=0) {  // this is an argument operator
+      if(ftype>=6) {  // filter type applies to tags
+        if(argop=='(' || argop==')')
+          fil__err_tagsbracket++;
+        else
+          fil__err_tagsbool++;
+        pk= pe;  // jump to next key/val pair in parameter list
+  continue;
+        }  // filter type applies to tags
+      if(fe==fp) {  // first argument
+        if(argop=='(') {
+          if(loglevel>0) PINFO("Filter:   (")
+          fe[0].left_bracketn++;
+          }
+        else
+          WARNv("Unknown operator at start of: %.80s",pk)
+        }
+      else switch(argop) {  // in dependence of argument operator
+        // add Boolean operator to previous comparison
+      case '&':
+        if(loglevel>0) PINFO("Filter:     AND")
+        fe[-1].operator= true; break;
+      case '|':
+        if(loglevel>0) PINFO("Filter:   OR")
+        fe[-1].operator= false; break;
+      case ')':
+        if(loglevel>0) PINFO("Filter:   )")
+        if(fe[0].left_bracketn!=0)
+          WARNv("Bracket error at: %.80s",pk)
+        fe[-1].right_bracketn++;
+        break;
+      case '(':
+        if(loglevel>0) PINFO("Filter:   (")
+        fe[0].left_bracketn++;
+        break;
+        }  // in dependence of argument operator
+      pk= pe;  // jump to next key/val pair in parameter list
+  continue;
+      }
     pv= pk;
-    while((*pv!='=' || pv[-1]=='\\') && pv<pe) pv++;
-    if(pv>=pe-1) pv= pe;
+    while(((*pv!='=' && *pv!='<' && *pv!='>' &&
+        (*pv!='!' || pv[1]!='=')) ||
+        (pv>pk && pv[-1]=='\\')) && pv<pe) pv++;
+      // find operator =, <, >, !=
+    if(pv>=pe-1) pv= pe;  // there was no operator in this pair
     len= pv-pk;  // length of this key
     if(len>(fil__pairkM)) {
       len= fil__pairkM;  // delimit key length
       WARNv("filter key too long: %.*s",fil__pairkM,pk)
       }
+    op= -1;  // 'unknown operator' (default)
     if(pv>=pe) {  // there is a key but no value
       if(len>0 && pk[len-1]=='=') len--;
-      fil_strescwildcpy(fe->k,pk,len);  // store this key
-      fe->v[0]= 0;  // null string because there is no value
+      fil_cpy(fe->k,pk,len,2);  // store this key, op='='
+      memset(fe->v,0,3);  // store empty value
       }
     else {  // key and value
-      fil_strescwildcpy(fe->k,pk,len);  // store this key
-      if(fe>fp && 
-          (len==0 || strcmp(fe->k,(fe-1)->k)==0)) {
-          // no key or same key as previous one
-        fe->k[0]= 0;  // mark pair as 'pair with same key'
+      if(len==0)  // no key given
+        memset(fe->k,0,3);  // store empty key,
+          // i.e., mark pair as 'pair with same key';
+          // note that this is not allowed at start of term,
+          // after bracket(s) and after different operators;
+          // this will be checked in fil_plausi();
+      else
+        fil_cpy(fe->k,pk,len,2);  // store this key, op='='
+      if(*pv=='=') op= 2;
+      else if(*pv=='!' && pv[1]=='=') op= 3;
+      else if(*pv=='<' && pv[1]!='=') op= 4;
+      else if(*pv=='>' && pv[1]=='=') op= 5;
+      else if(*pv=='>' && pv[1]!='=') op= 6;
+      else if(*pv=='<' && pv[1]=='=') op= 7;
+      if(op<0) {  // unknown operator
+        WARNv("unknown comparison at: %.80s",pv)
+        op= 2;  // assume '='
         }
-      len= pe-pv-1;  // length of this value
-      if(len>(fil__pairkM)) {
-        len= fil__pairkM;  // delimit value length
-        WARNv("filter val too long: %.*s",fil__pairkM,pv)
-        }
-      fil_strescwildcpy(fe->v,pv+1,len);  // store this value
+      pv++;  // jump over operator
+      if(pv<pe && *pv=='=') pv++;
+        // jump over second character of a two-character operator
+      len= pe-pv;  // length of this value
+      fil_cpy(fe->v,pv,len,op);  // store this value
+      }  // key and value
+    if(loglevel>0) {
+      static const char* ops[]= { "?",
+        "=","!=","=","!=","<",">=",">","<=",
+        "?","?","=(numeric)","!=(numeric)",
+        "<(numeric)",">=(numeric)",">(numeric)","<=(numeric)" };
+
+      PINFOv("Filter:     %s\"%.80s\"%s %s %s\"%.80s\"%s",
+        fe->k[0]<=1 && (fe->k[1] & 1)? "*": "",
+        *(int16_t*)(fe->k)==0? "(last key)":
+          fe->k[0]>=2? fe->k+1: fe->k+2,
+        fe->k[0]<=1 && (fe->k[1] & 2)? "*": "",
+        ops[fe->v[0]+1],
+        fe->v[0]<=1 && (fe->v[1] & 1)? "*": "",
+        *(int16_t*)(fe->v)==0? "(anything)":
+          fe->v[0]>=2? fe->v+1: fe->v+2,
+        fe->v[0]<=1 && (fe->v[1] & 2)? "*": "");
       }
-    if(loglevel>0)
-      fprintf(stderr,"osmfilter Filter: \"%.80s\"=\"%.80s\"\n",
-        fe->k,fe->v);
     if(fe->k[0]=='@') fil_filterheader= true;
+    fe->right_bracketn= 0;
+    fe->operator= false;
+    if(fe>fp && meetall && *(int16_t*)fe->k!=0)
+        // not first comparison AND all conditions are to be met AND
+        // this comparison has not an empty key
+      fe[-1].operator= true;
     fe++;  // next pair in key/val table
+    fe->left_bracketn= 0;
     pk= pe;  // jump to next key/val pair in parameter list
     }  // end   for every key/val pair
   if(fe>=fee)
@@ -1930,114 +2612,331 @@ static void fil_set(int ftype,const char* arg) {
     fil_activeo[ftype%3]= true;
   if(ftype<6)
     global_recursive= true;  // recursive processing is necessary
-  }  // end   fil_set()
+  }  // end   fil_parse()
 
-static inline bool fil_test0(int otype,
+static int fil_plausi() {
+  // check plausibility of filter parameter;
+  // may be called after all parameters have been parsed
+  // with fil_parse();
+  // furthermore, this procedure inserts brackets to invert
+  // Boolean operator priorities if the keyword "all" had been given;
+  // return: o: OK; !=0: syntax error;
+  int ft;  // filter type
+  int bracket_balance;
+  int bl;  // open brackets without correspondence
+  int br;  // closed brackets without correspondence
+  int bm;  // bracket occurrences if 'meetall' 
+  fil__pair_t* f,*fp,*fe;
+  int synt;  // number of syntax errors
+  //int tagsbool;  // number of Boolean expressions in tags filter
+  //int tagsbracket;  // number of brackets in tags filter
+
+  // check plausibility
+  bl= br= bm= synt= 0;
+  //tagsbool= tagsbracket= 0;
+  for(ft= 0;ft<6;ft++) {  // for every object filter type
+    fp= f= fil__pair[ft]; fe= fil__paire[ft];
+    bracket_balance= 0;
+    while(fp<fe) {  // for every key/val pair in filter
+      bracket_balance+= fp->left_bracketn-fp->right_bracketn;
+      if(fil_meetall[ft] &&
+          (fp->left_bracketn!=0 || fp->right_bracketn!=0))
+        bm++;
+      if(*(int16_t*)fp->k==0) {  // empty key
+        if(fp==f) {
+          PERR("empty key cannot start a term.")
+          synt++;
+          }
+        else if(fp[-1].right_bracketn!=0 || fp[0].left_bracketn!=0) {
+          PERR("empty key not valid after bracket.")
+          synt++;
+          }
+        else if(fp>=f+2 && !fp[-1].operator &&
+            fp[-2].operator) {
+          // last operators were AND and OR
+          PERR("empty key must not follow OR after AND.")
+          synt++;
+          }
+        #if 0
+        else if(fp>=f+2 && *(int16_t*)fp[-1].k==0 &&
+            fp[-1].operator!=fp[-2].operator) {
+          // last key was empty too, AND operator changed
+          PERR("empty keys must not follow different operators.")
+          synt++;
+          }
+        #endif
+        }  // empty key
+      fp++;
+      }  // for every key/val pair in filter
+    if(bracket_balance>0)
+      bl+= bracket_balance;
+    else if(bracket_balance<0)
+      br+= -bracket_balance;
+    }  // for every filter type
+  if(bl==1)
+    PERR("missing one right bracket.")
+  else if(bl>1)
+    PERRv("missing %i right brackets.",bl)
+  if(br==1)
+    PERR("missing one left bracket.")
+  else if(br>1)
+    PERRv("missing %i left brackets.",br)
+  if(bm>0)
+    PERR("brackets not allowed if keyword \"all\".")
+  if(fil__err_tagsbool!=0)
+    PERR("Boolean operators must not be used in tags filter.")
+  if(fil__err_tagsbracket!=0)
+    PERR("brackets must not be used in tags filter.")
+
+  // preprocess operator priority if keyword "all"
+  for(ft= 0;ft<fil__pairtM;ft++) {  // for every filter type
+    if(fil_meetall[ft]) {
+      fp= f= fil__pair[ft]; fe= fil__paire[ft];
+      while(fp<fe) {  // for every key/val pair in filter
+
+        if(!fp[0].operator && fp<fe-1 &&
+            (fp==f || fp[-1].operator)) {
+            // change to 'or'
+          fp[0].left_bracketn++;
+            if(loglevel>=2)
+              PINFOv("inserting[%i][%i]: \"(\"",ft,fp-fil__pair[ft])
+          }
+        else if(!fp[-1].operator && fp>f &&
+            (fp[0].operator || fp==fe-1)) {
+            // change to 'and'
+          fp[0].right_bracketn++;
+            if(loglevel>=2)
+              PINFOv("inserting[%i][%i]: \")\"",ft,fp-fil__pair[ft])
+          }
+        fp++;
+        }  // for every key/val pair in filter
+      }
+    }  // for every filter type
+
+  return bl+br+bm*100+synt*1000+
+    (fil__err_tagsbool+fil__err_tagsbracket)*10000;
+  }  // fil_plausi()
+
+static inline bool fil_check0(int otype,
     char** key,char** keye,char** val,char** vale) {
-  // test if OSM object matches filter criteria;
+  // check if OSM object matches filter criteria;
   // at this procedure, filter type 0..2 is applied: 'keep object';
   // keyp,keye,valp,vale: tag list;
   // otype: 0: node; 1: way; 2: relation;
   // return: given tag list matches keep criteria;
+  bool result;
   char** keyp,**valp;
   fil__pair_t* fp,*fe;
-  const char* k;  // last key in filter
+  int bracket_balance;
+  int bb;  // temporary for bracket_balance
+  char* v;  // previous value of a key which compared successfully
 
-  if(fil_meetall[otype]) {  // AND
-    k= "name";  // (default)
-    fp= &fil__pair[otype][0]; fe= fil__paire[otype];
-    while(fp<fe) {  // for every key/val pair in filter
-      if(fp->k[0]!=0) k= fp->k;
+  result= false;
+  v= NULL;  // (default)
+  valp= &v;  // (default)
+  bracket_balance= 0;
+  fp= fil__pair[otype]; fe= fil__paire[otype];
+  while(fp<fe) {  // for every key/val pair in filter
+    bracket_balance+= fp->left_bracketn;
+    if(*(int16_t*)(fp->k)==0) {
+      if(v!=NULL)
+        result= fil__cmp(v,fp->v);
+      }
+    else {
+      result= false;  // (default)
       keyp= key; valp= val;
       while(keyp<keye) {  // for all key/val pairs of this object
-        if(fil__cmp(*keyp,k) &&
-          (fp->v[0]==0 || fil__cmp(*valp,fp->v)))
+        if(fil__cmp(*keyp,fp->k)) {  // right key
+          v= *valp;
+          if(*(int16_t*)(fp->k)==0 || fil__cmp(v,fp->v)) {
+            // right value
+            result= true;
       break;
+            }
+          }
         keyp++; valp++;
         }  // for all key/val pairs of this object
-      if(keyp>=keye) {  // did not find a matching tag pair in object
+      }
+    #if MAXLOGLEVEL>=3
+      if(loglevel>=3)
+        PINFOv("comparison[%i][%i]==%i",otype,fp-fil__pair[otype],result)
+    #endif
+    if(result) {  // comparison satisfied
+      if(fp->operator) {  // Boolean operator is AND
+        // (continue with next comparison)
+        }  // Boolean operator is AND
+      else {  // Boolean operator is OR
+        // at each encountered 'or':
+        // jump to after next operand at lower layer
+        bracket_balance-= fp->right_bracketn;
+        if(bracket_balance<=0)  // we already are at lowest level
+return result;
+        bb= bracket_balance;
         fp++;
-        if(fp<fe && fp->k[0]==0)
-          // next key is "", i.e. it belongs to a group of
-          // conditions which shall be combined with 'OR',
-          // i.e., we do have another chance to meet the condition
-    continue;
-return false;
-        }
-      fp++;
-      while(fp<fe && fp->k[0]==0)
-          // next key is "", i.e. it belongs to a group of
-          // conditions which shall be combined with 'OR'
-        fp++;  // skip is because we already met the condition;
-      }  // for every key/val pair in filter
-return true;
-    }  // end   AND
-  else {  // OR
-    keyp= key; valp= val;
-    while(keyp<keye) {  // for all key/val pairs of this object
-      k= "name";  // (default)
-      fp= &fil__pair[otype][0]; fe= fil__paire[otype];
-      while(fp<fe) {  // for every key/val pair in filter
-        if(fp->k[0]!=0) k= fp->k;
-        if(fil__cmp(*keyp,k) &&
-          (fp->v[0]==0 || fil__cmp(*valp,fp->v)))
-return true;
+        while(fp<fe) {
+          bracket_balance+= fp->left_bracketn;
+          bracket_balance-= fp->right_bracketn;
+          if(bracket_balance>=bb) {  // same level or higher
+            fp++;
+        continue;
+            }
+          if(fp->operator) {  // next operator is 'and'
+            fp++;
+        break;  // go on by evaluating this operator
+            }
+          // here: next operator is an 'or'
+          if(bracket_balance<=0)  // we are at lowest level
+return result;
+          bb= bracket_balance;  // from now on ignore this level
+          fp++;
+          }
+        v= NULL;  // previous value no longer valid
+  continue;
+        }  // Boolean operator is OR
+      }  // comparison satisfied
+    else {  // comparison not satisfied
+      if(fp->operator) {  // Boolean operator is AND
+        // jump to after next 'or' within same brackets or
+        // lower layer, but not into the space between new brackets
+        bracket_balance-= fp->right_bracketn;
+        bb= bracket_balance;
         fp++;
-        }  // for every key/val pair in filter
-      keyp++; valp++;
-      }  // for all key/val pairs of this object
-return false;
-    }  // end   OR
-  }  // end   fil_test0()
+        while(fp<fe) {
+          bracket_balance+= fp->left_bracketn;
+          bracket_balance-= fp->right_bracketn;
+          if(bracket_balance<bb)
+            bb= bracket_balance;
+          if(bracket_balance<=bb && !fp->operator) {
+              // not in a new bracket AND next operator is 'or'
+            fp++;
+        break;
+            }
+          fp++;
+          }
+        v= NULL;  // previous value no longer valid
+  continue;
+        }  // Boolean operator is AND
+      else {  // Boolean operator is OR
+        // (continue with next comparison)
+        }  // Boolean operator is OR
+      }  // comparison not satisfied
+    bracket_balance-= fp->right_bracketn;
+    fp++;
+    }  // for every key/val pair in filter
+  return result;
+  }  // end   fil_check0()
 
-static inline bool fil_test1(int otype,
+static inline bool fil_check1(int otype,
     char** key,char** keye,char** val,char** vale) {
-  // test if OSM object matches filter criteria;
-  // at this procedure, filter type 3..5 is applied: 'drop object';
+  // check if OSM object matches filter criteria;
+  // at this procedure, filter type 4..6 is applied: 'drop object';
   // keyp,keye,valp,vale: tag list;
   // otype: 0: node; 1: way; 2: relation;
   // return: given tag list matches keep criteria;
+  bool result;
   char** keyp,**valp;
   fil__pair_t* fp,*fe;
-  const char* k;  // last key in filter
+  int bracket_balance;
+  int bb;  // temporary for bracket_balance
+  char* v;  // previous value of a key which compared successfully
 
-  if(fil_meetall[3+otype]) {  // AND
-    k= "name";  // (default)
-    fp= &fil__pair[3+otype][0]; fe= fil__paire[3+otype];
-    while(fp<fe) {  // for every key/val pair in filter
-      if(fp->k[0]!=0) k= fp->k;
+  result= false;
+  v= NULL;  // (default)
+  valp= &v;  // (default)
+  bracket_balance= 0;
+  fp= fil__pair[3+otype]; fe= fil__paire[3+otype];
+  while(fp<fe) {  // for every key/val pair in filter
+    bracket_balance+= fp->left_bracketn;
+    if(*(int16_t*)(fp->k)==0) {
+      if(v!=NULL)
+        result= fil__cmp(v,fp->v);
+      }
+    else {
+      result= false;  // (default)
       keyp= key; valp= val;
       while(keyp<keye) {  // for all key/val pairs of this object
-        if(fil__cmp(*keyp,k) &&
-          (fp->v[0]==0 || fil__cmp(*valp,fp->v)))
+        if(fil__cmp(*keyp,fp->k)) {  // right key
+          v= *valp;
+          if(*(int16_t*)(fp->k)==0 || fil__cmp(v,fp->v)) {
+            // right value
+            result= true;
       break;
+            }
+          }
         keyp++; valp++;
         }  // for all key/val pairs of this object
-      if(keyp>=keye)  // did not find a matching tag pair in object
-return false;
-      fp++;
-      }  // for every key/val pair in filter
-return true;
-    }  // end   AND
-  else {  // OR
-    keyp= key; valp= val;
-    while(keyp<keye) {  // for all key/val pairs of this object
-      k= "name";  // (default)
-      fp= &fil__pair[3+otype][0]; fe= fil__paire[3+otype];
-      while(fp<fe) {  // for every key/val pair in filter
-        if(fp->k[0]!=0) k= fp->k;
-        if(fil__cmp(*keyp,k) &&
-          (fp->v[0]==0 || fil__cmp(*valp,fp->v)))
-return true;
+      }
+    #if MAXLOGLEVEL>=3
+      if(loglevel>=3)
+        PINFOv("comparison[%i][%i]==%i",
+          3+otype,fp-fil__pair[3+otype],result)
+    #endif
+    if(result) {  // comparison satisfied
+      if(fp->operator) {  // Boolean operator is AND
+        // (continue with next comparison)
+        }  // Boolean operator is AND
+      else {  // Boolean operator is OR
+        // at each encountered 'or':
+        // jump to after next operand at lower layer
+        bracket_balance-= fp->right_bracketn;
+        if(bracket_balance<=0)  // we already are at lowest level
+return result;
+        bb= bracket_balance;
         fp++;
-        }  // for every key/val pair in filter
-      keyp++; valp++;
-      }  // for all key/val pairs of this object
-return false;
-    }  // end   OR
-  }  // end   fil_test1()
+        while(fp<fe) {
+          bracket_balance+= fp->left_bracketn;
+          bracket_balance-= fp->right_bracketn;
+          if(bracket_balance>=bb) {  // same level or higher
+            fp++;
+        continue;
+            }
+          if(fp->operator) {  // next operator is 'and'
+            fp++;
+        break;  // go on by evaluating this operator
+            }
+          // here: next operator is an 'or'
+          if(bracket_balance<=0)  // we are at lowest level
+return result;
+          bb= bracket_balance;  // from now on ignore this level
+          fp++;
+          }
+        v= NULL;  // previous value no longer valid
+  continue;
+        }  // Boolean operator is OR
+      }  // comparison satisfied
+    else {  // comparison not satisfied
+      if(fp->operator) {  // Boolean operator is AND
+        // jump to after next 'or' within same brackets or
+        // lower layer, but not into the space between new brackets
+        bracket_balance-= fp->right_bracketn;
+        bb= bracket_balance;
+        fp++;
+        while(fp<fe) {
+          bracket_balance+= fp->left_bracketn;
+          bracket_balance-= fp->right_bracketn;
+          if(bracket_balance<bb)
+            bb= bracket_balance;
+          if(bracket_balance<=bb && !fp->operator) {
+              // not in a new bracket AND next operator is 'or'
+            fp++;
+        break;
+            }
+          fp++;
+          }
+        v= NULL;  // previous value no longer valid
+  continue;
+        }  // Boolean operator is AND
+      else {  // Boolean operator is OR
+        // (continue with next comparison)
+        }  // Boolean operator is OR
+      }  // comparison not satisfied
+    bracket_balance-= fp->right_bracketn;
+    fp++;
+    }  // for every key/val pair in filter
+  return result;
+  }  // end   fil_check1()
 
-static inline bool fil_test2(int otype,
+static inline bool fil_check2(int otype,
     const char* key,const char* val) {
   // test if filter allows this tag to be kept;
   // at this procedure, filters type 6..8 and 9..11 are applied:
@@ -2054,9 +2953,9 @@ static inline bool fil_test2(int otype,
     keymatch= false;
     fp= &fil__pair[6+otype][0]; fe= fil__paire[6+otype];
     while(fp<fe) {
-      if(fp->k[0]!=0) k= fp->k;
+      if(*(int16_t*)(fp->k)!=0) k= fp->k;
       keymatch= fil__cmp(key,k);
-      if(keymatch && (fp->v[0]==0 || fil__cmp(val,fp->v)))
+      if(keymatch && (*(int16_t*)(fp->v)==0 || fil__cmp(val,fp->v)))
         goto keep;
       fp++;
       }
@@ -2069,14 +2968,15 @@ return false;
     k= "name";  // (default)
     fp= &fil__pair[9+otype][0]; fe= fil__paire[9+otype];
     while(fp<fe) {
-      if(fp->k[0]!=0) k= fp->k;
-      if(fil__cmp(key,k) && (fp->v[0]==0 || fil__cmp(val,fp->v)))
+      if(*(int16_t*)(fp->k)!=0) k= fp->k;
+      if(fil__cmp(key,k) && (*(int16_t*)(fp->v)==0 ||
+          fil__cmp(val,fp->v)))
 return false;
       fp++;
       }
     }
   return true;
-  }  // end   fil_test2()
+  }  // end   fil_check2()
 
 //------------------------------------------------------------
 // end   Module fil_   osm filter module
@@ -3410,7 +4310,7 @@ static inline void wo_keyval(const char* key,const char* val) {
 return;
     }  // end   o5m
   if(wo__format<0) {  // item list
-    if(global_outkey[0]==0)  // list keys
+    if(*(int16_t*)global_outkey==0)  // list keys
       count_add(key);
     else {  // list vals of one specific key
       if(fil__cmp(key,global_outkey))
@@ -4790,14 +5690,14 @@ return 18;
         if(!fil_active[otype])
           keep= true;
         else  // filter 'keep object' shall be applied
-          keep= fil_test0(otype,key,keyf,val,valf);
+          keep= fil_check0(otype,key,keyf,val,valf);
         }  // in stage !=3, or if object is a way
 
       // care about 'drop object' filter
       if(keep || (filterstage==1 && otype==2)) {
         if(fil_active[3+otype]) {
             // filter 'drop object' shall be applied
-          if(fil_test1(otype,key,keyf,val,valf))
+          if(fil_check1(otype,key,keyf,val,valf))
             keep= false;
           }  // filter 'drop object' shall be applied
         }
@@ -4851,7 +5751,7 @@ return 18;
           hisver,histime,hiscset,hisuid,hisuser,lon,lat);
         keyp= key; valp= val;
         while(keyp<keye) {  // for all key/val pairs of this object
-          if(!fil_activeo[otype] || fil_test2(otype,*keyp,*valp))
+          if(!fil_activeo[otype] || fil_check2(otype,*keyp,*valp))
             wo_keyval(*keyp,*valp);
           keyp++; valp++;
           }
@@ -4865,7 +5765,7 @@ return 18;
           wo_noderef(*refidp++);
         keyp= key; valp= val;
         while(keyp<keye) {  // for all key/val pairs of this object
-          if(!fil_activeo[otype] || fil_test2(otype,*keyp,*valp))
+          if(!fil_activeo[otype] || fil_check2(otype,*keyp,*valp))
             wo_keyval(*keyp,*valp);
           keyp++; valp++;
           }
@@ -4879,7 +5779,7 @@ return 18;
           wo_ref(*refidp++,*reftypep++,*refrolep++);
         keyp= key; valp= val;
         while(keyp<keye) {  // for all key/val pairs of this object
-          if(!fil_activeo[otype] || fil_test2(otype,*keyp,*valp))
+          if(!fil_activeo[otype] || fil_check2(otype,*keyp,*valp))
             wo_keyval(*keyp,*valp);
           keyp++; valp++;
           }
@@ -4910,6 +5810,8 @@ int main(int argc,const char** argv) {
   // main program;
   // for the meaning of the calling line parameters please look at the
   // contents of helptext[];
+  static char outputfilename[400]= "";  // standard output file name
+    // =="": standard output 'stdout'
   int h_n,h_w,h_r;  // user-suggested hash size in MiB, for
     // hash tables of nodes, ways, and relations;
   int r,l;
@@ -4933,6 +5835,7 @@ int main(int argc,const char** argv) {
 
   // initializations
   h_n= h_w= h_r= 0;
+  fil_ini();
   #if __WIN32__
     setmode(fileno(stdout),O_BINARY);
     setmode(fileno(stdin),O_BINARY);
@@ -4940,9 +5843,10 @@ int main(int argc,const char** argv) {
 
   // read command line parameters
   if(argc<=1) {  // no command line parameters given
-    fprintf(stderr,"osmfilter " VERSION "\n"
+    fprintf(stderr,"osmfilter "VERSION"\n"
       "Filters .o5m, .o5c, .osm, .osc and .osh files.\n"
-      "To get detailed help, please enter: ./osmfilter -h\n");
+      "Use command line option -h to get a parameter overview,\n"
+      "or --help to get detailed help.\n");
 return 0;  // end the program, because without having parameters
       // we do not know what to do;
     }
@@ -5011,8 +5915,13 @@ return 1;
       }
     if(loglevel>0)  // verbose mode
       fprintf(stderr,"osmfilter Parameter: %.2000s\n",a);
-    if(strcmp(a,"-h")==0 || strcmp(a,"-help")==0 ||
-        strcmp(a,"--help")==0) {  // user wants help text
+    if(strcmp(a,"-h")==0) {  // user wants parameter overview
+      fprintf(stderr,"%s",shorthelptext);  // print brief help text
+        // (took "%s", to prevent oversensitive compiler reactions)
+return 0;
+      }
+    if(strcmp(a,"-help")==0 || strcmp(a,"--help")==0) {
+        // user wants help text
       fprintf(stderr,"%s",helptext);  // print help text
         // (took "%s", to prevent oversensitive compiler reactions)
 return 0;
@@ -5087,6 +5996,11 @@ return 0;
       global_outo5m= true;
   continue;  // take next parameter
       }
+    if(strcmp(a,"--out-osm")==0) {
+        // user wants output in osm format
+      global_outosm= true;
+  continue;  // take next parameter
+      }
     if(strcmp(a,"--out-o5c")==0 ||
         strcmp(a,"-5c")==0) {
         // user wants output in o5m format
@@ -5111,15 +6025,15 @@ return 0;
     if((l= strzlcmp(a,"--out-key"))>0 ||
         (l= strzlcmp(a,"--out-count"))>0) {
         // user wants a list of keys or vals as output
-      global_outkey= "";  // list of keys
-      if(a[l]=='=') {  // list of vals to a certain key
-        static char k[300];
-        int len;
+      static char k[300]= {0,0,0};
+      int len;
 
+      global_outkey= k;  // we shall create a list of keys
+      if(a[l]=='=') {  // we shall create list of vals to a certain key
         global_outkey= a+l+1;
         len= strlen(global_outkey);
-        if(len>=sizeof(k)) len= sizeof(k)-1;
-        fil_strescwildcpy(k,global_outkey,len);
+        if(len>=sizeof(k)-2) len= sizeof(k)-3;
+        fil_cpy(k,global_outkey,len,2);
         global_outkey= k;
         }
       if(a[6]=='c') global_outsort= true;
@@ -5143,6 +6057,11 @@ return 0;
     if(strzcmp(a,"-t=")==0 && a[3]!=0) {
         // user-defined prefix for names of temorary files
       strmcpy(global_tempfilename,a+3,sizeof(global_tempfilename)-30);
+  continue;  // take next parameter
+      }
+    if(strzcmp(a,"-o=")==0 && a[3]!=0) {
+        // reroute standard output to a file
+      strMcpy(outputfilename,a+3);
   continue;  // take next parameter
       }
     if((strcmp(a,"-v")==0 || strcmp(a,"--verbose")==0 ||
@@ -5182,7 +6101,7 @@ return 0;
       if(*p!=0) { p++; while(isdig(*p)) { h_r= h_r*10+*p-'0'; p++; } }
   continue;  // take next parameter
       }
-    #define F(t) fil_set(t,a+l);
+    #define F(t) fil_parse(t,a+l);
     #define D(p,f) if((l= strzlcmp(a,#p))>0) { f continue; }
     D(--keep=,F(0)F(1)F(2))
     D(--keep-nodes=,F(0))
@@ -5229,7 +6148,29 @@ return 0;  // end the program, because without having input files
       // we do not know what to do;
     }  // for every parameter in command line
 
+  // check plausibility of filter strings
+  if(fil_plausi()!=0)
+return 2;
+
   // initialize hash module
+  if(outputfilename[0]!=0 && !global_outo5m &&
+      !global_outo5c && !global_outosm && !global_outosc &&
+      !global_outosh) {
+      // have output file name AND  output format not defined
+    // try to determine the output format by evaluating
+    // the file name extension
+    if(strycmp(outputfilename,".o5m")==0) global_outo5m= true;
+    else if(strycmp(outputfilename,".o5c")==0) global_outo5c= true;
+    else if(strycmp(outputfilename,".osm")==0) global_outosm= true;
+    else if(strycmp(outputfilename,".osc")==0) global_outosc= true;
+    else if(strycmp(outputfilename,".osh")==0) global_outosh= true;
+    if(strycmp(outputfilename,".pbf")==0) {
+      PERR(".pbf format is not supported. Please use .o5m.")
+return 3;
+      }
+    }
+  if(write_open(outputfilename[0]!=0? outputfilename: NULL)!=0)
+return 3;
   if(global_ignoredependencies)
       // user does interobject dependencies to be ignored
     global_recursive= false;
