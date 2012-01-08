@@ -1,5 +1,5 @@
-// osmfilter 2011-12-18 00:40
-#define VERSION "1.2H"
+// osmfilter 2011-12-25 06:30
+#define VERSION "1.2J"
 // (c) 2011 Markus Weber, Nuernberg
 //
 // compile this file:
@@ -1136,7 +1136,7 @@ static inline bool read_input() {
           l= (read__buf+read__bufM)-read_bufe;
             // reminding space in buffer
           if(l>read_PREFETCH) l= read_PREFETCH;
-          memset(read_bufe,l,0);
+          memset(read_bufe,0,l);  // 2011-12-24 ,,,,,
             // set reminding space up to prefetch bytes in buffer to 0
       break;
           }
@@ -1148,7 +1148,7 @@ static inline bool read_input() {
       }  // end   still bytes to read
     }  // end   read buffer is too low
   return read_infop->eof && read_bufp>=read_bufe;
-  }  // end   read__input()
+  }  // end   read_input()
 
 static void read_switch(read_info_t* filehandle) {
   // switch to another already opened file;

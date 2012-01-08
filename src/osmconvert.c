@@ -1,5 +1,5 @@
-// osmconvert 2011-12-19 14:20
-#define VERSION "0.5V"
+// osmconvert 2011-12-25 06:20
+#define VERSION "0.5X"
 // (c) 2011 Markus Weber, Nuernberg
 //
 // compile this file:
@@ -457,9 +457,7 @@ static bool global_complexways= false;  // same as global_completeways,
   // but multipolygons are included completely (with all ways and their
   // nodes), even when only a single nodes lies inside the borders;
 static bool global_alltonodes= false;
-  // note:
-  // THE CONVERSION FOR WAYS/RELATIONS TO NODES IS UNDER CONSTRUCTION,
-  // IT WILL NOT WORK AT PRESENT.
+  // convert all ways and all relations to nodes
 static int64_t global_maxobjects= 25000000;
 static int64_t global_otypeoffset10= INT64_C(1000000000000000);
   // if global_alltonodes:
@@ -1130,8 +1128,10 @@ return false;
     for(;;) {  // for every line in border file
       s[0]= 0;
       sp= fgets(s,sizeof(s),fi);
-      if(bep>=bee)
+      if(bep>=bee) {
+        fclose(fi);
 return false;
+        }
       if(s[0]!=' ' && s[0]!='\t') {  // not inside a section
         if(x0!=nil && x1!=nil && (x1!=x0 || y1!=y0)) {
             // last polygon was not closed
@@ -1201,6 +1201,7 @@ return false;
       if(sp==NULL)  // end of border file
     break;
       }  // end   for every line in border file
+    fclose(fi);
     bep->x1= nil;  // set terminator of edge list
     border__edge_n= bep-border__edge;  // set number of edges
     }  // end   get border polygon
@@ -1650,7 +1651,7 @@ static inline bool read_input() {
           l= (read__buf+read__bufM)-read_bufe;
             // reminding space in buffer
           if(l>read_PREFETCH) l= read_PREFETCH;
-          memset(read_bufe,l,0);
+          memset(read_bufe,0,l);  // 2011-12-24 ,,,,,
             // set reminding space up to prefetch bytes in buffer to 0
       break;
           }
@@ -4935,7 +4936,7 @@ struct posi__mem_struct {  // element of position array
   } __attribute__((__packed__));
   // (do not change this structure; the search algorithm expects
   // the size of this structure to be 16 bytes)
-  // remarks to x:
+  // remarks to .x:
   // if you get posi_nil as value for x, you may assume that
   // the object has been stored, but its geoposition is unknown;
   // remarks to .id:
@@ -5074,6 +5075,7 @@ return;
 
 static inline void posr__write(int64_t i) {
   // write an int64 to tempfile, use a buffer;
+//DPv(posr__write %lli,i)
   if(posr__bufp>=posr__bufee) posr__flush();
   *posr__bufp++= i;
   }  // end   posr__write()
@@ -5109,10 +5111,14 @@ return 1;
   return 0;
   }  // end   posr_ini()
 
-static inline void posr_rel(int64_t relid) {
+static inline void posr_rel(int64_t relid,bool is_area) {
   // store the id of a relation in tempfile;
+  // relid: id of this relation;
+  // is_area: this relation describes an area;
+  //          otherwise: it describes a way;
   posr__write(0);
   posr__write(relid);
+  posr__write(is_area);
   } // end   posr_rel()
 
 static inline void posr_ref(int64_t refid) {
@@ -5160,12 +5166,15 @@ return 1;
   return 0;
   }  // end   posr_read()
 
-static void posr_processing(int* maxrewindp) {
+static void posr_processing(int* maxrewindp,int32_t** refxy) {
   // process temporary relation reference file;
   // the file must already have been written; this procedure
   // processes the interrelation references of this file and updates
   // the georeference table of module posi_ accordingly;
   // maxrewind: maximum number of rewinds;
+  // refxy: memory space provided by the caller;
+  //        this is a temporarily used space for the coordinates
+  //        of the relations' members;
   // return:
   // maxrewind: <0: maximum number of rewinds was not sufficient;
   int changed;
@@ -5179,7 +5188,11 @@ static void posr_processing(int* maxrewindp) {
   bool jump_over;  // jump over the presently processed relation
   int32_t* xy_rel;  // geocoordinate of the processed relation;
   int32_t x_min,x_max,y_min,y_max;
+  int32_t x_middle,y_middle,xy_distance,new_distance;
   int n;  // number of referenced objects with coordinates
+  int64_t temp64;
+  bool is_area;  // the relation describes an area
+  int32_t** refxyp;  // pointer in refxy array ,,,,,
   int r;
 
   h= 0; n=0;
@@ -5194,9 +5207,37 @@ static void posr_processing(int* maxrewindp) {
         r= posr_read(&refid);
         if((r || refid==0) && n>0) {  // (EOF OR new relation) AND
             // there have been coordinates for this relation
+          x_middle= x_max/2+x_min/2;
+          y_middle= (y_max+y_min)/2;
           // store the coordinates for this relation
-          xy_rel[0]= x_max/2+x_min/2;
-          xy_rel[1]= (y_max+y_min)/2;
+//DPv(is_area %i refxy %i,is_area,refxyp==refxy)
+          if(is_area || refxyp==refxy) {
+            // take the center as position for this relation
+            xy_rel[0]= x_middle;
+            xy_rel[1]= y_middle;
+            }
+          else {  // not an area ,,,,,
+            int32_t x,y;
+
+            // get the member position which is the nearest
+            // to the center
+            posi_xy= *--refxyp;
+            x= posi_xy[0];
+            y= posi_xy[1];
+            xy_distance= abs(x-x_middle)+abs(y-y_middle);
+            while(refxyp>refxy) {
+              refxyp--;
+              new_distance= abs(posi_xy[0]-x_middle)+
+                abs(posi_xy[1]-y_middle);
+              if(new_distance<xy_distance) {
+                x= posi_xy[0];
+                y= posi_xy[1];
+                xy_distance= new_distance;
+                }
+              }
+            xy_rel[0]= x;
+            xy_rel[1]= y;
+            }  // not an area
           n= 0;
           changed++;  // memorize that we calculated
             // at least one relation's position
@@ -5207,9 +5248,12 @@ static void posr_processing(int* maxrewindp) {
       break;
         // here: a relation id will follow
         posr_read(&relid);  // get the relation's id
+        posr_read(&temp64);  // get the relation's area flag
+        is_area= temp64;
         posi_get(relid+global_otypeoffset20);
           // get the relation's geoposition
         xy_rel= posi_xy;  // save address of relation's coordinate
+        refxyp= refxy;  // restart writing coordinate buffer
         jump_over= xy_rel==NULL || xy_rel[0]!=posi_nil;
         }  // end   get next id
       if(jump_over)  // no element allocated for this very relation OR
@@ -5224,7 +5268,8 @@ static void posr_processing(int* maxrewindp) {
           }
     continue;  // go on and examine next reference of this relation
         }
-      if(n==0) {  // first coordinate
+      *refxyp++= posi_xy;  // store coordinate for reprocessing later
+      if(n==0) {  // first coordinate ,,,,,
         // just store it as min and max
         x_min= x_max= posi_xy[0];
         y_min= y_max= posi_xy[1];
@@ -8287,9 +8332,11 @@ static int oo_main() {
   int64_t hiscset;
   uint32_t hisuid;
   char* hisuser;
-  int64_t* refid;  // ids of referenced object ,,,,,
+  int64_t* refid;  // ids of referenced object
   int64_t* refidee;  // end address of array
   int64_t* refide,*refidp;  // pointer in array
+  int32_t** refxy;  // coordinates of referenced object ,,,,,
+  int32_t** refxyp;  // pointer in array
   byte* reftype;  // types of referenced objects
   byte* reftypee,*reftypep;  // pointer in array
   char** refrole;  // roles of referenced objects
@@ -8342,6 +8389,7 @@ static int oo_main() {
   else wformat= 11;
   refid= (int64_t*)oo__malloc(sizeof(int64_t)*global_maxrefs);
   refidee= refid+global_maxrefs;
+  refxy= (int32_t**)oo__malloc(sizeof(int32_t*)*global_maxrefs);
   reftype= (byte*)oo__malloc(global_maxrefs);
   refrole= (char**)oo__malloc(sizeof(char*)*global_maxrefs);
   keyee= key+oo__keyvalM;
@@ -8576,7 +8624,7 @@ return 21;
         if(hashactive)
           oo__rrprocessing(&maxrewind);
         if(global_alltonodes)
-          posr_processing(&maxrewind_posr);
+          posr_processing(&maxrewind_posr,refxy);
         oo__dependencystage(33);  // enter next stage
         oo__tyidold= 0;  // allow the next object to be written
         if(oo_open(o5mtempfile))
@@ -8645,7 +8693,7 @@ return 23;
   continue;
         }
       c= bufsp[1];
-      if(c=='n' && bufsp[2]=='o')  // node
+      if(c=='n' && bufsp[2]=='o' && bufsp[3]=='d')  // node
         otype= 0;
       else if(c=='w' && bufsp[2]=='a')  // way
         otype= 1;
@@ -9028,7 +9076,7 @@ return 23;
       oo__ifp->tyid= tyidold;
       }
 
-    // care about possible array overflows ,,,,,
+    // care about possible array overflows
     if(refide>=refidee)
       PERRv("%s %"PRIi64" has too many refs.",ONAME(otype),id)
     if(keye>=keyee)
@@ -9365,7 +9413,7 @@ return 26;
         }
     if(keye-key>statistics.keyval_pairs_max)
       statistics.keyval_pairs_max= keye-key;
-      }  // object statistics ,,,,,
+      }  // object statistics
 
     // abort writing if user does not want any standard output
     if(global_outnone)
@@ -9431,6 +9479,8 @@ return 26;
           if(global_alltonodes) {
               // ways are to be converted to nodes
             int32_t x_min,x_max,y_min,y_max;
+            int32_t x_middle,y_middle,xy_distance,new_distance;
+            bool is_area;
             int n;  // number of referenced nodes with coordinates
 
             // check id range
@@ -9440,11 +9490,13 @@ return 26;
 
             // determine the center of the way's bbox
             n= 0;
-            refidp= refid;
+            refidp= refid; refxyp= refxy;
             while(refidp<refide) {  // for every referenced node
+              *refxyp= NULL;  // (default)
               if(!global_dropbrokenrefs || hash_geti(0,*refidp)) {
                   // referenced node lies inside the borders
                 posi_get(*refidp);  // get referenced node's coordinates
+                *refxyp= posi_xy;
                 if(posi_xy!=NULL) {  // coordinate is valid
                   if(n==0) {  // first coordinate
                     // just store it as min and max
@@ -9466,8 +9518,51 @@ return 26;
                   n++;
                   }  // coordinate is valid
                 }  // referenced node lies inside the borders
-              refidp++;
+              refidp++; refxyp++;
               }  // end   for every referenced node
+
+            // determine if the way is an area
+            is_area= refide!=refid && refide[-1]==refid[0];
+                // first node is the same as the last one
+
+            // determine the valid center of the way
+            x_middle= x_max/2+x_min/2;
+            y_middle= (y_max+y_min)/2;
+            if(is_area) {
+              lon= x_middle;
+              lat= y_middle;
+              }
+            else {  // the way is not an area
+            // determine the node with has the smallest distance
+            // to the center of the bbox ,,,,,
+#if 1
+              n= 0;
+              refidp= refid; refxyp= refxy;
+              while(refidp<refide) {  // for every referenced node
+                posi_xy= *refxyp;
+                if(posi_xy!=NULL) {
+                    // there is a coordinate for this reference
+                  if(n==0) {  // first coordinate
+                    // just store it as min and max
+                    lon= posi_xy[0];
+                    lat= posi_xy[1];
+                    xy_distance= abs(lon-x_middle)+abs(lat-y_middle);
+                    }
+                  else {  // additional coordinate
+                    new_distance= abs(posi_xy[0]-x_middle)+
+                      abs(posi_xy[1]-y_middle);
+                    if(new_distance<xy_distance) {
+                      lon= posi_xy[0];
+                      lat= posi_xy[1];
+                      xy_distance= new_distance;
+                      }
+                    }  // additional coordinate
+                  n++;
+                  }  // there is a coordinate for this reference
+                refidp++; refxyp++;
+                }  // end   for every referenced node
+#endif
+              }  // the way is not an area
 
             // write a node as a replacement for the way
             if(n>0) {  // there is at least one coordinate available
@@ -9477,7 +9572,6 @@ return 26;
                 id_new= global_otypeoffsetstep++;
               else
                 id_new= id+global_otypeoffset10;
-              lon= x_max/2+x_min/2; lat= (y_max+y_min)/2;
               wo_node(id_new,
                 hisver,histime,hiscset,hisuid,hisuser,lon,lat);
               keyp= key; valp= val;
@@ -9522,8 +9616,32 @@ return 26;
           //         if option --all-to-nodes is set, then
           //           for each relation, write its members'
           //             geopositions into a temporary file (use posr_);
+          bool has_highway,has_area;  // relation has certain tags
+          bool is_area;  // the relation is assumed to represent an area
           bool idwritten,posridwritten;
 
+          // determine if this relation is assumed to represent
+          // an area or not
+          has_highway= has_area= false;
+          keyp= key; valp= val;
+          while(keyp<keye) {  // for all key/val pairs of this object
+            if(strcmp(*keyp,"highway")==0 ||
+                strcmp(*keyp,"waterway")==0 ||
+                strcmp(*keyp,"railway")==0 ||
+                strcmp(*keyp,"aerialway")==0 ||
+                strcmp(*keyp,"power")==0 ||
+                strcmp(*keyp,"route")==0
+                )
+              has_highway= true;
+            else if(strcmp(*keyp,"area")==0 &&
+                strcmp(*valp,"yes")==0)
+              has_area= true;
+            keyp++,valp++;
+            }
+          is_area= !has_highway || has_area;
+
+          // write the id of this relation and its members
+          // to a temporary file
           idwritten= posridwritten= false;
           refidp= refid; reftypep= reftype;
           while(refidp<refide) {  // for every referenced object
@@ -9541,7 +9659,8 @@ return 26;
             if(global_alltonodes) {
               if(!posridwritten) {
                   // did not yet write our relation's id
-                posr_rel(id);  // write it now
+                // write it now ,,,,,
+                posr_rel(id,is_area);
                 posi_set(id+global_otypeoffset20,posi_nil,0);
                   // reserve space for this relation's coordinates
                 posridwritten= true;
