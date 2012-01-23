@@ -1,5 +1,5 @@
-// osmconvert 2011-12-25 06:20
-#define VERSION "0.5X"
+// osmconvert 2012-01-23 13:40
+#define VERSION "0.5Y"
 // (c) 2011 Markus Weber, Nuernberg
 //
 // compile this file:
@@ -159,12 +159,15 @@ const char* helptext=
 "        or .o5c file.\n"
 "        There are certain limitations if this option is chosen:\n"
 "        there must be TWO input files and borders cannot be applied.\n"
+"        Both files must be sorted by object type and id. Created\n"
+"        objects will appear in the output file as \"modified\", unless\n"
+"        having version number 1.\n"
 "\n"
 "--diff-contents\n"
 "        Similar to --diff, this option calculates differences between\n"
 "        two OSM files. Here, to determine the differences complete\n"
 "        OSM objects are consulted, not only the version numbers.\n"
-"        Unfortunately, this option strictly requires the first file\n"
+"        Unfortunately, this option strictly requires both input files\n"
 "        to have .o5m format.\n"
 "\n"
 "--emulate-osmosis\n"
