@@ -1,5 +1,5 @@
-// osmfilter 2011-12-25 06:30
-#define VERSION "1.2J"
+// osmfilter 2012-01-10 22:30
+#define VERSION "1.2K"
 // (c) 2011 Markus Weber, Nuernberg
 //
 // compile this file:
@@ -2593,7 +2593,8 @@ static void fil_parse(int ftype,const char* arg) {
           fe->v[0]>=2? fe->v+1: fe->v+2,
         fe->v[0]<=1 && (fe->v[1] & 2)? "*": "");
       }
-    if(fe->k[0]=='@') fil_filterheader= true;
+    if(fe->k[1]=='@')
+      fil_filterheader= true;
     fe->right_bracketn= 0;
     fe->operator= false;
     if(fe>fp && meetall && *(int16_t*)fe->k!=0)
