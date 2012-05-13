@@ -1,5 +1,5 @@
-// osmconvert 2012-01-23 13:40
-#define VERSION "0.5Y"
+// osmconvert 2012-01-28 13:20
+#define VERSION "0.5Z"
 // (c) 2011 Markus Weber, Nuernberg
 //
 // compile this file:
@@ -157,8 +157,7 @@ const char* helptext=
 "--diff\n"
 "        Calculate difference between two files and create a new .osc\n"
 "        or .o5c file.\n"
-"        There are certain limitations if this option is chosen:\n"
-"        there must be TWO input files and borders cannot be applied.\n"
+"        There must be TWO input files and borders cannot be applied.\n"
 "        Both files must be sorted by object type and id. Created\n"
 "        objects will appear in the output file as \"modified\", unless\n"
 "        having version number 1.\n"
@@ -6613,7 +6612,7 @@ return;
     write_str(" generator=\"pbf2osm\"");
     break;
   case 13:  // Osmosis XML
-    write_str(" generator=\"Osmosis 0.39\"");
+    write_str(" generator=\"Osmosis 0.40\"");
     break;
   case 14:  // Osmium XML
     write_str(" generator="
@@ -6630,11 +6629,24 @@ return;
       border_querybox(&x1,&y1,&x2,&y2);
     if(border_active || bboxvalid) {  // borders are to be applied OR
         // bbox has been supplied
-      write_str("\t<bounds minlat=\""); write_sfix7(y1);
-      write_str("\" minlon=\""); write_sfix7(x1);
-      write_str("\" maxlat=\""); write_sfix7(y2);
-      write_str("\" maxlon=\""); write_sfix7(x2);
-      write_str("\"/>"NL);
+      if(wo__format==13) {  // Osmosis
+        // <bound box="53.80000,10.50000,54.00000,10.60000"
+        //  origin="0.40.1"/>
+        write_str("  <bound box=\""); write_sfix7(y1);
+        write_str(","); write_sfix7(x1);
+        write_str(","); write_sfix7(y2);
+        write_str(","); write_sfix7(x2);
+        write_str("\" origin=\"0.40\"/>"NL);
+        }  // Osmosis
+      else {  // not Osmosis
+        // <bounds minlat="53.8" minlon="10.5" maxlat="54."
+        //  maxlon="10.6"/>
+        write_str("\t<bounds minlat=\""); write_sfix7(y1);
+        write_str("\" minlon=\""); write_sfix7(x1);
+        write_str("\" maxlat=\""); write_sfix7(y2);
+        write_str("\" maxlon=\""); write_sfix7(x2);
+        write_str("\"/>"NL);
+        }  // not Osmosis
       }
     }  // end   bbox may be written
   }  // end   wo_start()
