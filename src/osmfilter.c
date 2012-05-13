@@ -1,5 +1,5 @@
-// osmfilter 2012-01-10 22:30
-#define VERSION "1.2K"
+// osmfilter 2012-02-03 20:20
+#define VERSION "1.2M"
 // (c) 2011 Markus Weber, Nuernberg
 //
 // compile this file:
@@ -1136,7 +1136,7 @@ static inline bool read_input() {
           l= (read__buf+read__bufM)-read_bufe;
             // reminding space in buffer
           if(l>read_PREFETCH) l= read_PREFETCH;
-          memset(read_bufe,0,l);  // 2011-12-24 ,,,,,
+          memset(read_bufe,0,l);  // 2011-12-24
             // set reminding space up to prefetch bytes in buffer to 0
       break;
           }
@@ -1939,7 +1939,8 @@ static inline bool fil__cmp(const char* s1,const char* s2) {
 
   op= *s2++;
   if(op==2) { // '='
-    // we first care about this because it's the most frequently used option
+    // first we care about the 'equal' operator
+    // because it's the most frequently used option
     while(*s1==*s2 && *s1!=0) { s1++; s2++; }
     return *s1==0 && *s2==0;
     }
@@ -2725,7 +2726,7 @@ static inline bool fil_check0(int otype,
   // keyp,keye,valp,vale: tag list;
   // otype: 0: node; 1: way; 2: relation;
   // return: given tag list matches keep criteria;
-  bool result;
+  bool result,gotkey;
   char** keyp,**valp;
   fil__pair_t* fp,*fe;
   int bracket_balance;
@@ -2744,10 +2745,11 @@ static inline bool fil_check0(int otype,
         result= fil__cmp(v,fp->v);
       }
     else {
-      result= false;  // (default)
+      result= gotkey= false;  // (default)
       keyp= key; valp= val;
       while(keyp<keye) {  // for all key/val pairs of this object
         if(fil__cmp(*keyp,fp->k)) {  // right key
+          gotkey= true;
           v= *valp;
           if(*(int16_t*)(fp->k)==0 || fil__cmp(v,fp->v)) {
             // right value
@@ -2757,6 +2759,13 @@ static inline bool fil_check0(int otype,
           }
         keyp++; valp++;
         }  // for all key/val pairs of this object
+      if(!gotkey) {  // did not find a matching key
+        char c;
+
+        c= *fp->v;
+        if(c==1 || c==3)  // 'unequal' operator  2012-02-03
+          result= true;  // accept this equation as fulfilled
+        }
       }
     #if MAXLOGLEVEL>=3
       if(loglevel>=3)
@@ -3849,7 +3858,7 @@ static inline void wo__author(int32_t hisver,int64_t histime,
       if(global_dropauthor) histime= 0;
       o5_svar64(histime-o5_time); o5_time= histime;
       if(histime!=0) {
-          // author information available ,,,
+          // author information available
         o5_svar64(hiscset-o5_cset); o5_cset= hiscset;
         if(hisuid==0 || hisuser==NULL || hisuser[0]==0)
             // user identification not available
@@ -4002,11 +4011,24 @@ return;
   if(wo__format!=12) {  // bbox may be written
     if(bboxvalid) {  // borders are to be applied OR
         // bbox has been supplied
-      write_str("\t<bounds minlat=\""); write_sfix7(y1);
-      write_str("\" minlon=\""); write_sfix7(x1);
-      write_str("\" maxlat=\""); write_sfix7(y2);
-      write_str("\" maxlon=\""); write_sfix7(x2);
-      write_str("\"/>"NL);
+      if(wo__format==13) {  // Osmosis
+        // <bound box="53.80000,10.50000,54.00000,10.60000"
+        //  origin="0.40.1"/>
+        write_str("  <bound box=\""); write_sfix7(y1);
+        write_str(","); write_sfix7(x1);
+        write_str(","); write_sfix7(y2);
+        write_str(","); write_sfix7(x2);
+        write_str("\" origin=\"0.40\"/>"NL);
+        }  // Osmosis
+      else {  // not Osmosis
+        // <bounds minlat="53.8" minlon="10.5" maxlat="54."
+        //  maxlon="10.6"/>
+        write_str("\t<bounds minlat=\""); write_sfix7(y1);
+        write_str("\" minlon=\""); write_sfix7(x1);
+        write_str("\" maxlat=\""); write_sfix7(y2);
+        write_str("\" maxlon=\""); write_sfix7(x2);
+        write_str("\"/>"NL);
+        }  // not Osmosis
       }
     }  // end   bbox may be written
   }  // end   wo_start()
@@ -4575,8 +4597,6 @@ return oo__nildeg;
   return k;
   }  // end   oo__strtodeg()
 
-//static char* oo__tz=NULL;  // original value of time zone ,,,
-
 static int64_t oo__strtimetosint64(const char* s) {
   // read a timestamp in OSM format, e.g.: "2010-09-30T19:23:30Z",
   // and convert it to a signed 64-bit integer;
@@ -4704,7 +4724,7 @@ static bool oo__xmltag() {
 
   for(;;) {  // until break
     while(!oo__wsnul(*read_bufp)) read_bufp++;
-      // find next whitespace or null character or '/' ,,,
+      // find next whitespace or null character or '/'
     while(oo__ws(*read_bufp)) read_bufp++;
       // find first character after the whitespace(s)
     c= *read_bufp;
@@ -4732,7 +4752,7 @@ return false;
           (c= *++read_bufp)=='n' || c=='w' || c=='r') ) {
         // this has been long tag which is ending now
         while(!oo__wsnul(*read_bufp)) read_bufp++;
-          // find next whitespace ,,,
+          // find next whitespace
         oo__xmlkey= oo__xmlval= "";
 return true;
         }
@@ -4929,7 +4949,7 @@ return;
 return;
       else if(c1=='r' && c2=='e' && c3=='l')
 return;
-      else if(c1=='b' && c2=='o' && c3=='u') {  // bounds ,,,
+      else if(c1=='b' && c2=='o' && c3=='u') {  // bounds
         // bounds may be supplied in one of these formats:
         // <bounds minlat="53.01104" minlon="8.481593"
         //   maxlat="53.61092" maxlon="8.990601"/>
