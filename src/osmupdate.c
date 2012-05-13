@@ -1,5 +1,5 @@
-// osmupdate 2011-11-22 16:00
-#define VERSION "0.2H"
+// osmupdate 2012-05-13 21:40
+#define VERSION "0.2J"
 // (c) 2011 Markus Weber, Nuernberg
 //
 // This program is free software; you can redistribute it and/or
@@ -216,28 +216,6 @@ return dest;
   }  // end   strmcpy()
 #define strMcpy(d,s) strmcpy((d),(s),sizeof(d))
 
-static inline char *stpcpy0(char* dest, const char* src) {
-  // redefinition of C99's stpcpy() because it's missing in MinGW,
-  // and declaration in Linux seems to be wrong;
-  while(*src!=0)
-    *dest++= *src++;
-  *dest= 0;
-  return dest;
-  }  // end stpcpy0()
-
-static inline char *stppcpy(char** destp, const char* src) {
-  // same as stpcpy(), but the destination pointer itself will
-  // be moved to the end of the destination string;
-  char* dest;
-
-  dest= *destp;
-  while(*src!=0)
-    *dest++= *src++;
-  *dest= 0;
-  *destp= dest;
-  return dest;
-  }  // end stppcpy()
-
 static inline char *stecpy(char** destp, char* destend,
     const char* src) {
   // same as stppcpy(), but you may define a pointer which the
@@ -273,26 +251,6 @@ static inline char *stpesccpy(char *dest, const char *src) {
   *dest= 0;
   return dest;
   }  // stpesccpy()
-
-static inline char *stppesccpy(char **destp, const char *src) {
-  // same as stpesccpy(), but the destination pointer itself will
-  // be moved to the end of the destination string;
-  char* dest;
-
-  dest= *destp;
-  while(*src!=0) {
-    if(*src=='\'' || *src=='\"'
-        #if !__WIN32__
-          || *src=='\\'
-        #endif
-        )
-      *dest++= '\\';
-    *dest++= *src++;
-    }
-  *dest= 0;
-  *destp= dest;
-  return dest;
-  }  // stppesccpy()
 
 static inline char *steesccpy(char **destp,char *destend,
     const char *src) {
@@ -409,26 +367,6 @@ static inline int64_t strtosint64(const char* s) {
   return i*sign;
   }  // end   strtosint64()
 
-static inline char* uint32toa(uint32_t v,char* s) {
-  // convert uint32_t integer into string;
-  // v: long integer value to convert;
-  // return: s;
-  // s[]: digit string;
-  char* s1,*s2;
-  char c;
-
-  s1= s;
-  if(v==0)
-    *s1++= '0';
-  s2= s1;
-  while(v>0)
-    { *s2++= "0123456789"[v%10]; v/= 10; }
-  *s2--= 0;
-  while(s2>s1)
-    { c= *s1; *s1= *s2; *s2= c; s1++; s2--; }
-  return s;
-  }  // end   uint32toa()
-
 static inline int64_t strtimetosint64(const char* s) {
   // read a timestamp in OSM format, e.g.: "2010-09-30T19:23:30Z",
   // and convert it to a signed 64-bit integer;
@@ -504,35 +442,6 @@ static inline void int64tostrtime(uint64_t v,char* sp) {
   i= tm.tm_sec%60;
   *sp++= i/10+'0'; *sp++= i%10+'0'; *sp++= 'Z'; *sp= 0;
   }  // end   int64tostrtime()
-
-static inline void int32todate(uint64_t v,char* sp) {
-  // write a sequential numeric date into an 8-digit string;
-  // example: "20100930" (year, month, day);
-  // v: sequential numeric value of the date;
-  //    ==0: Jan 01 1970; ==1: Jan 02 1970; ...
-  // sp[9]: destination string;
-  time_t vtime;
-  struct tm tm;
-  int i;
-
-  vtime= v*86400;
-  #if __WIN32__
-  memcpy(&tm,gmtime(&vtime),sizeof(tm));
-  #else
-  gmtime_r(&vtime,&tm);
-  #endif
-  i= tm.tm_year+1900;
-  sp+= 3; *sp--= i%10+'0';
-  i/=10; *sp--= i%10+'0';
-  i/=10; *sp--= i%10+'0';
-  i/=10; *sp= i%10+'0';
-  sp+= 4;
-  i= tm.tm_mon+1;
-  *sp++= i/10+'0'; *sp++= i%10+'0';
-  i= tm.tm_mday;
-  *sp++= i/10+'0'; *sp++= i%10+'0';
-  *sp= 0;
-  }  // end   int32todate()
 
 static inline bool file_exists(const char* file_name) {
   // query if a file exists;
@@ -742,7 +651,7 @@ static int64_t get_newest_changefile_timestamp(
     stecpy(&command_p,command_e,"hour-replicate/state.txt");
     break;
   case cft_DAILY:
-    stecpy(&command_p,command_e,"history/timestamp.txt");
+    stecpy(&command_p,command_e,"day-replicate/state.txt");
     break;
   default:  // invalid change file type
 return 0;
@@ -800,8 +709,6 @@ exit(1);
       }  // found timestamp line
     }  // full status information
   changefile_timestamp= strtimetosint64(result);
-  if(changefile_timestamp!=0 && changefile_type==cft_DAILY)
-    *file_sequence_number= (int32_t)(changefile_timestamp/86400);
   if(loglevel>0) {  // verbose mode
     char ts[30];
 
@@ -818,12 +725,10 @@ static int64_t get_changefile_timestamp(
     changefile_type_t changefile_type,int32_t file_sequence_number) {
   // download and inspect the timestamp of a specific changefile which
   // is available in the Internet;
-  // a minutely or an hourly timestamp will not be downloaded if it
+  // a timestamp file will not be downloaded if it
   // already exists locally as temporary file;
   // changefile_type: minutely, hourly or daily changefile;
   // file_sequence_number: sequence number of the file;
-  //                       in case of daily change files, this is the
-  //                       number of days from Jan 01 1970;
   // uses:
   // global_tempfile_name
   // return: timestamp of the changefile (seconds from Jan 01 1970);
@@ -835,78 +740,74 @@ static int64_t get_changefile_timestamp(
   int fd,r;  // file descriptor; number of bytes which have been read
   char timestamp_contents[1000];  // contents of the timestamp
   int64_t changefile_timestamp;
+  char* sp;
 
-  if(changefile_type!=cft_DAILY) {  // minutely or hourly changefile
-    char* sp;
+  // create the file name for the cached timestamp; example:
+  // "osmupdate_temp/temp.m000012345.txt"
+  sp= stpmcpy(timestamp_cachefile_name,global_tempfile_name,
+    sizeof(timestamp_cachefile_name[0])-20);
+  *sp++= '.';
+  *sp++= CFTNAME(changefile_type)[0];
+    // 'm', 'h', 'd' for minutely, hourly or daily timestamps
+  sprintf(sp,"%09"PRIi32".txt",file_sequence_number);
+    // add sequence number and file name extension
 
-    // create the file name for the cached timestamp; example:
-    // "osmupdate_temp/temp.m000012345.txt"
-    sp= stpmcpy(timestamp_cachefile_name,global_tempfile_name,
-      sizeof(timestamp_cachefile_name[0])-20);
-    *sp++= '.';
-    *sp++= CFTNAME(changefile_type)[0];
-      // 'm', 'h', 'd' for minutely, hourly or daily timestamps
-    sprintf(sp,"%09"PRIi32".txt",file_sequence_number);
-      // add sequence number and file name extension
+  // download the timestamp into a cache file
+  if(file_length(timestamp_cachefile_name)<10) {
+      // timestamp has not been downloaded yet
+    command_p= command;
+    stecpy(&command_p,command_e,"wget -nv -c ");
+    stecpy(&command_p,command_e,global_planet_url);
+    if(changefile_type==cft_MINUTELY)
+      stecpy(&command_p,command_e,"minute-replicate/");
+    else if(changefile_type==cft_HOURLY)
+      stecpy(&command_p,command_e,"hour-replicate/");
+    else if(changefile_type==cft_DAILY)
+      stecpy(&command_p,command_e,"day-replicate/");
+    else  // invalid change file type
+      return 0;
+    /* assemble Sequence path */ {
+      int l;
+      l= sprintf(command_p,"%03i/%03i/%03i",
+        file_sequence_number/1000000,file_sequence_number/1000%1000,
+        file_sequence_number%1000);
+      command_p+= l;
+      }
+    stecpy(&command_p,command_e,".state.txt -O \"");
+    steesccpy(&command_p,command_e,timestamp_cachefile_name);
+    stecpy(&command_p,command_e,"\" 2>&1");
+    shell_command(command,result);
+    }  // timestamp has not been downloaded yet
 
-    // download the timestamp into a cache file
-    if(file_length(timestamp_cachefile_name)<10) {
-        // timestamp has not been downloaded yet
-      command_p= command;
-      stecpy(&command_p,command_e,"wget -nv -c ");
-      stecpy(&command_p,command_e,global_planet_url);
-      if(changefile_type==cft_MINUTELY)
-        stecpy(&command_p,command_e,"minute-replicate/");
-      else if(changefile_type==cft_HOURLY)
-        stecpy(&command_p,command_e,"hour-replicate/");
-      else  // invalid change file type
-        return 0;
-      /* assemble Sequence path */ {
-        int l;
-        l= sprintf(command_p,"%03i/%03i/%03i",
-          file_sequence_number/1000000,file_sequence_number/1000%1000,
-          file_sequence_number%1000);
-        command_p+= l;
-        }
-      stecpy(&command_p,command_e,".state.txt -O \"");
-      steesccpy(&command_p,command_e,timestamp_cachefile_name);
-      stecpy(&command_p,command_e,"\" 2>&1");
-      shell_command(command,result);
-      }  // timestamp has not been downloaded yet
+  // read the timestamp cache file
+  fd= open(timestamp_cachefile_name,O_RDONLY|O_BINARY);
+  if(fd<=0)  // could not open the file
+    timestamp_contents[0]= 0;  // hence we did not read anything
+  else {  // could open the file
+    r= read(fd,timestamp_contents,sizeof(timestamp_contents)-1);
+    if(r<0) r= 0;
+    timestamp_contents[r]= 0;  // set string terminator
+    close(fd);
+    }  // could open the file
 
-    // read the timestamp cache file
-    fd= open(timestamp_cachefile_name,O_RDONLY|O_BINARY);
-    if(fd<=0)  // could not open the file
-      timestamp_contents[0]= 0;  // hence we did not read anything
-    else {  // could open the file
-      r= read(fd,timestamp_contents,sizeof(timestamp_contents)-1);
-      if(r<0) r= 0;
-      timestamp_contents[r]= 0;  // set string terminator
-      close(fd);
-      }  // could open the file
+  // parse the timestamp information
+  if(timestamp_contents[0]=='#') {  // full status information
+    // get timestamp
+    char* timestamp_p;
+    timestamp_p= strstr(timestamp_contents,"timestamp=");
+      // search timestamp line
+    if(timestamp_p!=NULL &&
+        timestamp_p-timestamp_contents<sizeof(timestamp_contents)-30) {
+        // found timestamp line
+      // copy timestamp to begin of timestamp_contents[]
+      timestamp_p+= 10;  // jump over text
+      memcpy(timestamp_contents,timestamp_p,13);
+      memcpy(timestamp_contents+13,timestamp_p+14,3);
+      memcpy(timestamp_contents+16,timestamp_p+18,4);
+      }  // found timestamp line
+    }  // full status information
+  changefile_timestamp= strtimetosint64(timestamp_contents);
 
-    // parse the timestamp information
-    if(timestamp_contents[0]=='#') {  // full status information
-      // get timestamp
-      char* timestamp_p;
-      timestamp_p= strstr(timestamp_contents,"timestamp=");
-        // search timestamp line
-      if(timestamp_p!=NULL &&
-          timestamp_p-timestamp_contents<sizeof(timestamp_contents)-30) {
-          // found timestamp line
-        // copy timestamp to begin of timestamp_contents[]
-        timestamp_p+= 10;  // jump over text
-        memcpy(timestamp_contents,timestamp_p,13);
-        memcpy(timestamp_contents+13,timestamp_p+14,3);
-        memcpy(timestamp_contents+16,timestamp_p+18,4);
-        }  // found timestamp line
-      }  // full status information
-    changefile_timestamp= strtimetosint64(timestamp_contents);
-
-    }  // minutely or hourly changefile
-  else {  // daily changefile
-    changefile_timestamp= file_sequence_number*(int64_t)86400;
-    }  // daily changefile
   if(loglevel>0) {  // verbose mode
     char ts[30];
 
@@ -935,8 +836,6 @@ static void process_changefile(
   // temporary file;
   // changefile_type: minutely, hourly or daily changefile;
   // file_sequence_number: sequence number of the file;
-  //                       in case of daily change files, this is the
-  //                       number of days from Jan 01 1970;
   //                       ==0: process the remaining files which
   //                            are waiting in the cache; cleanup;
   // new_timestamp: timestamp of the new file which is to be created;
@@ -1003,32 +902,20 @@ static void process_changefile(
       stecpy(&command_p,command_e,"hour-replicate/");
       break;
     case cft_DAILY:
-      stecpy(&command_p,command_e,"history/");
+      stecpy(&command_p,command_e,"day-replicate/");
       break;
     default:  // invalid change file type
       return;
       }  // changefile type
-    if(changefile_type!=cft_DAILY) {
-        // minutely or hourly changefile
+
+    /* process sequence number */ {
       int l;
       l= sprintf(command_p,"%03i/%03i/%03i.osc.gz",
         file_sequence_number/1000000,file_sequence_number/1000%1000,
         file_sequence_number%1000);
       command_p+= l;
-      }  // minutely or hourly changefile
-    else {  // daily changefile
-      int32todate(file_sequence_number-1,command_p);  // previous day
-      command_p+= 4;  // jump over the 4 year digits
-      memmove(command_p+1,command_p,4);
-        // separate month and day from year
-      *command_p= '/';  // insert a slash between year and month
-      command_p+= 5;  // jump over slash, month and date
-      *command_p++= '-';  // add a dash
-      int32todate(file_sequence_number,command_p);  // actual day
-      memmove(command_p,command_p+4,4);  // dispose of the year digits
-      command_p+= 4;  // jump over month and date
-      stecpy(&command_p,command_e,".osc.gz");
-      }  // daily changefile
+      }  // process sequence number
+
     stecpy(&command_p,command_e," -O \"");
     steesccpy(&command_p,command_e,this_cachefile_name);
     stecpy(&command_p,command_e,"\" 2>&1 && echo \"Wget Command Ok\"");
@@ -1308,7 +1195,9 @@ return 0;
 return 1;
         }
       if(strcmp(a,"--complete-ways")==0 ||
-          strcmp(a,"--complex-ways")==0) {
+          strcmp(a,"--complex-ways")==0 ||
+          strcmp(a,"--drop-brokenrefs")==0 ||
+          strcmp(a,"--drop-broken-refs")==0) {
         WARNv("option %.80s does not work with updates.",a)
   continue;  // take next parameter
         }
