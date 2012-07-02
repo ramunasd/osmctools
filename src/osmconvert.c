@@ -1,5 +1,5 @@
-// osmconvert 2012-01-28 13:20
-#define VERSION "0.5Z"
+// osmconvert 2012-07-02 18:00
+#define VERSION "0.6"
 // (c) 2011 Markus Weber, Nuernberg
 //
 // compile this file:
@@ -1653,7 +1653,7 @@ static inline bool read_input() {
           l= (read__buf+read__bufM)-read_bufe;
             // reminding space in buffer
           if(l>read_PREFETCH) l= read_PREFETCH;
-          memset(read_bufe,0,l);  // 2011-12-24 ,,,,,
+          memset(read_bufe,0,l);  // 2011-12-24
             // set reminding space up to prefetch bytes in buffer to 0
       break;
           }
@@ -4694,7 +4694,8 @@ static inline void pw_node(int64_t id,
     }  // version number is to be written
   pw__objp= pw__dn_lat; pw__obj_add_sint64(lat-pw__dc_lat);
   pw__dc_lat= lat;
-  pw__objp= pw__dn_lon; pw__obj_add_sint64(lon-pw__dc_lon);
+  pw__objp= pw__dn_lon;
+    pw__obj_add_sint64((int64_t)lon-pw__dc_lon);  //,,,,,
   pw__dc_lon= lon;
   }  // end   pw_node()
 
@@ -5194,7 +5195,7 @@ static void posr_processing(int* maxrewindp,int32_t** refxy) {
   int n;  // number of referenced objects with coordinates
   int64_t temp64;
   bool is_area;  // the relation describes an area
-  int32_t** refxyp;  // pointer in refxy array ,,,,,
+  int32_t** refxyp;  // pointer in refxy array
   int r;
 
   h= 0; n=0;
@@ -5218,7 +5219,7 @@ static void posr_processing(int* maxrewindp,int32_t** refxy) {
             xy_rel[0]= x_middle;
             xy_rel[1]= y_middle;
             }
-          else {  // not an area ,,,,,
+          else {  // not an area
             int32_t x,y;
 
             // get the member position which is the nearest
@@ -5271,7 +5272,7 @@ static void posr_processing(int* maxrewindp,int32_t** refxy) {
     continue;  // go on and examine next reference of this relation
         }
       *refxyp++= posi_xy;  // store coordinate for reprocessing later
-      if(n==0) {  // first coordinate ,,,,,
+      if(n==0) {  // first coordinate
         // just store it as min and max
         x_min= x_max= posi_xy[0];
         y_min= y_max= posi_xy[1];
@@ -5737,7 +5738,7 @@ static byte* o5__bufr0= NULL,*o5__bufr1= NULL;
 
 // basis for delta coding
 static int64_t o5_id;
-static uint32_t o5_lat,o5_lon;
+static uint32_t o5_lat,o5_lon;  //,,,,,
 static int64_t o5_cset;
 static int64_t o5_time;
 static int64_t o5_ref[3];  // for node, way, relation
@@ -6725,7 +6726,7 @@ static inline void wo_node(int64_t id,
     o5_byte(0x10);  // data set id for node
     o5_svar64(id-o5_id); o5_id= id;
     wo__author(hisver,histime,hiscset,hisuid,hisuser);
-    o5_svar32(lon-o5_lon); o5_lon= lon;
+    o5_svar32(lon-o5_lon); o5_lon= lon;  //,,,,,
     o5_svar32(lat-o5_lat); o5_lat= lat;
 return;
     }  // end   o5m
@@ -8350,7 +8351,7 @@ static int oo_main() {
   int64_t* refid;  // ids of referenced object
   int64_t* refidee;  // end address of array
   int64_t* refide,*refidp;  // pointer in array
-  int32_t** refxy;  // coordinates of referenced object ,,,,,
+  int32_t** refxy;  // coordinates of referenced object
   int32_t** refxyp;  // pointer in array
   byte* reftype;  // types of referenced objects
   byte* reftypee,*reftypep;  // pointer in array
@@ -8372,7 +8373,7 @@ static int oo_main() {
   byte* bp;
   char* sp;
   struct {
-    int64_t nodes,ways,relations;  // number of objects ,,,,,
+    int64_t nodes,ways,relations;  // number of objects
     int64_t node_id_min,node_id_max;
     int64_t way_id_min,way_id_max;
     int64_t relation_id_min,relation_id_max;
@@ -9549,7 +9550,7 @@ return 26;
               }
             else {  // the way is not an area
             // determine the node with has the smallest distance
-            // to the center of the bbox ,,,,,
+            // to the center of the bbox ,,,
 #if 1
               n= 0;
               refidp= refid; refxyp= refxy;
@@ -9674,7 +9675,7 @@ return 26;
             if(global_alltonodes) {
               if(!posridwritten) {
                   // did not yet write our relation's id
-                // write it now ,,,,,
+                // write it now
                 posr_rel(id,is_area);
                 posi_set(id+global_otypeoffset20,posi_nil,0);
                   // reserve space for this relation's coordinates
@@ -9832,7 +9833,7 @@ return 26;
     if(statistics.relrefs_max!=0)
       fprintf(fi,"relrefs max: %"PRIi32"\n",
         statistics.relrefs_max);
-    }  // print statistics ,,,,,
+    }  // print statistics
   return oo__error;
   }  // end   oo_main()
 
