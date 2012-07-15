@@ -1,5 +1,5 @@
-// osmconvert 2012-07-02 18:00
-#define VERSION "0.6"
+// osmconvert 2012-07-15 19:30
+#define VERSION "0.7"
 // (c) 2011 Markus Weber, Nuernberg
 //
 // compile this file:
@@ -54,7 +54,10 @@ const char* shorthelptext=
 "--out-o5m                 write output in .o5m format (fast binary)\n"
 "--out-o5c                 write output in .o5c format (bin. Changef.)\n"
 "--out-pbf                 write output in .pbf format (bin. standard)\n"
+"--out-csv                 write output in .csv format (plain table)\n"
 "--out-none                no standard output (for testing purposes)\n"
+"--csv=<column names>      choose columns for csv format\n"
+"--csv-separator=<sep>     separator character(s) for csv format\n"
 "--timestamp=<date_time>   add a timestamp to the data\n"
 "--timestamp=NOW-<seconds> add a timestamp in seconds before now\n"
 "--out-timestamp           output the file\'s timestamp, nothing else\n"
@@ -230,7 +233,25 @@ const char* helptext=
 "\n"
 "--out-pbf\n"
 "        For output, PBF format will be used.\n"
-"        NOTE THAT THIS OPTION IS EXPERIMENTAL AT PRESENT.\n"
+"\n"
+"--out-csv\n"
+"        A character separated list will be written to output.\n"
+"        The default separator is Tab, the default columns are:\n"
+"        type, id, name. You can change both by using the options\n"
+"        --csv-separator= and --csv=\n"
+"\n"
+"--csv-separator=<sep>\n"
+"        You may change the default separator (Tab) to a different\n"
+"        character or character sequence. For example:\n"
+"        --csv-separator=\"; \"\n"
+"\n"
+"--csv=<columns>\n"
+"        If you want to have certain columns in your csv list, please \n"
+"        specify their names as shown in this example:\n"
+"        --csv=\"@id name ref description\"\n"
+"        There are a few special column names for header data:\n"
+"        @otype (object type 0..2), @oname (object type name), @id\n"
+"        @lon, @lat, @uid, @user\n"
 "\n"
 "--out-none\n"
 "        This will be no standard output. This option is for testing\n"
@@ -439,6 +460,7 @@ static bool global_outosm= false;  // output shall have .osm format
 static bool global_outosc= false;  // output shall have .osc format
 static bool global_outosh= false;  // output shall have .osh format
 static bool global_outpbf= false;  // output shall have .pbf format
+static bool global_outcsv= false;  // output shall have .csv format
 static bool global_outnone= false;  // no standard output at all
 static bool global_emulatepbf2osm= false;
   // emulate pbf2osm compatible output
@@ -452,6 +474,7 @@ static bool global_outtimestamp= false;
   // print only the file timestamp, nothing else
 static bool global_statistics= false;  // print statistics to stderr
 static bool global_outstatistics= false;  // print statistics to stdout
+static char global_csvseparator[16]= "\t";  // separator for csv
 static bool global_completeways= false;  // when applying borders,
   // do not clip ways but include them as whole if at least a single
   // of its nodes lies inside the borders;
@@ -519,6 +542,28 @@ static inline char* uint32toa(uint32_t v,char* s) {
     { c= *s1; *s1= *s2; *s2= c; s1++; s2--; }
   return s;
   }  // end   uint32toa()
+
+static inline char* int64toa(int64_t v,char* s) {
+  // convert int64_t integer into string;
+  // v: long integer value to convert;
+  // return: s;
+  // s[]: digit string;
+  char* s1,*s2;
+  char c;
+
+  s1= s;
+  if(v<0)
+    { *s1++= '-'; v= -v; }
+  else if(v==0)
+    *s1++= '0';
+  s2= s1;
+  while(v>0)
+    { *s2++= "0123456789"[v%10]; v/= 10; }
+  *s2--= 0;
+  while(s2>s1)
+    { c= *s1; *s1= *s2; *s2= c; s1++; s2--; }
+  return s;
+  }  // end   int64toa()
 
 static inline char *stpcpy0(char *dest, const char *src) {
   // redefinition of C99's stpcpy() because it's missing in MinGW,
@@ -2393,6 +2438,178 @@ static inline void write_timestamp(uint64_t v) {
 
 //------------------------------------------------------------
 // end   Module write_   write module
+//------------------------------------------------------------
+
+
+
+//------------------------------------------------------------
+// Module csv_   csv write module
+//------------------------------------------------------------
+
+// this module provides procedures for generating csv output;
+// as usual, all identifiers of a module have the same prefix,
+// in this case 'csv'; an underline will follow in case of a
+// global accessible object, two underlines in case of objects
+// which are not meant to be accessed from outside this module;
+// the sections of private and public definitions are separated
+// by a horizontal line: ----
+
+#define csv__keyM 200  // max number of keys and vals
+#define csv__keyMM 256  // max number of characters +1 in key or val
+static char* csv__key= NULL;  // [csv__keyM][csv__keyMM]
+static int csv__keyn= 0;  // number of keys
+static char* csv__val= NULL;  // [csv__keyM][csv__keyMM]
+static int csv__valn= 0;  // number of vals
+// some booleans which tell us if certain keys are in column list;
+// this is for program acceleration
+static bool csv_key_otype= false, csv_key_oname= false,
+  csv_key_id= false, csv_key_lon= false, csv_key_lat= false,
+  csv_key_uid= false, csv_key_user= false;
+static char csv__sep0= '\t';  // first character of global_csvseparator;
+static char csv__rep0= ' ';  // replacement character for separator char
+
+static void csv__end() {
+  // clean-up csv processing;
+
+  if(csv__key!=NULL)
+    { free(csv__key); csv__key= NULL; }
+  if(csv__val!=NULL)
+    { free(csv__val); csv__val= NULL; }
+  }  // end   csv__end()
+
+//------------------------------------------------------------
+
+static int csv_ini(const char* columns) {
+  // initialize this module;
+  // must be called before any other procedure is called;
+  // may be called more than once; only the first call will
+  // initialize this module, every other call will solely
+  // overwrite the columns information  if !=NULL;
+  // columns[]: space-separated list of keys who are to be
+  //            used as column identifiers;
+  //            ==NULL: if list has already been given, do not
+  //                    change it; if not, set list to default;
+  // return: 0: everything went ok;
+  //         !=0: an error occurred;
+  static bool firstrun= true;
+
+  if(firstrun) {
+    firstrun= false;
+
+    csv__key= (char*)malloc(csv__keyM*csv__keyMM);
+    csv__val= (char*)malloc(csv__keyM*csv__keyMM);
+    if(csv__key==NULL || csv__val==NULL)
+return 1;
+    atexit(csv__end);
+    }
+  if(columns==NULL) {  // default columns shall be set
+    if(csv__keyn==0) {  // until now no column has been set
+      // set default columns
+      strcpy(&csv__key[0*csv__keyMM],"@oname");
+      csv_key_oname= true;
+      strcpy(&csv__key[1*csv__keyMM],"@id");
+      csv_key_id= true;
+      strcpy(&csv__key[2*csv__keyMM],"name");
+      csv__keyn= 3;
+      }  // until now no column has been set
+    }  // default columns shall be set
+  else {  // new columns shall be set
+    for(;;) {  // for each column name
+      int len;
+      char* tp;
+
+      len= strcspn(columns," ");
+      if(len==0)
+    break;
+      if(csv__keyn>=csv__keyM) {
+        WARN("too many csv columns")
+    break;
+        }
+      len++;
+      if(len>csv__keyMM) len= csv__keyMM;  // limit key length
+      tp= &csv__key[csv__keyn*csv__keyMM];
+      strmcpy(tp,columns,len);
+      csv__keyn++;
+      if(strcmp(tp,"@otype")==0) csv_key_otype= true;
+      else if(strcmp(tp,"@oname")==0) csv_key_oname= true;
+      else if(strcmp(tp,"@id")==0) csv_key_id= true;
+      else if(strcmp(tp,"@lon")==0) csv_key_lon= true;
+      else if(strcmp(tp,"@lat")==0) csv_key_lat= true;
+      else if(strcmp(tp,"@uid")==0) csv_key_uid= true;
+      else if(strcmp(tp,"@user")==0) csv_key_user= true;
+      columns+= len-1;
+      if(columns[0]==' ') columns++;
+      }  // for each column name
+    }  // new columns shall be set
+  // care about separator chars
+  if(global_csvseparator[0]==0 || global_csvseparator[1]!=0) {
+    csv__sep0= 0;
+    csv__rep0= 0;
+    }
+  else {
+    csv__sep0= global_csvseparator[0];
+    if(csv__sep0==' ')
+      csv__rep0= '_';
+    else
+      csv__rep0= ' ';
+    }
+  return 0;
+  }  // end   csv_ini()
+
+static void csv_add(const char* key,const char* val) {
+  // test if the key's value shall be printed and do so if yes;
+  int keyn;
+  const char* kp;
+
+  keyn= csv__keyn;
+  kp= csv__key;
+  while(keyn>0) {  // for all keys in column list
+    if(strcmp(key,kp)==0) {  // key is in column list
+      strmcpy(csv__val+(kp-csv__key),val,csv__keyMM);
+        // store value
+      csv__valn++;
+  break;
+      }  // key is in column list
+    kp+= csv__keyMM;  // take next key in list
+    keyn--;
+    }  // for all keys in column list
+  }  // end   csv_add()
+
+static void csv_write() {
+  // write a csv line - if csv data had been stored
+  char* vp,*tp;
+  int keyn;
+
+  if(csv__valn==0)
+return;
+  vp= csv__val;
+  keyn= csv__keyn;
+  while(keyn>0) {  // for all keys in column list
+    if(*vp!=0) {  // there is a value for this key
+      tp= vp;
+      do {
+        if(*tp==csv__sep0 || *tp==NL[0] || *tp==NL[1])
+              // character identical with separator or line feed
+          write_char(csv__rep0);  // replace it by replacement char
+        else
+          write_char(*tp);
+        tp++;
+        } while(*tp!=0);
+      *vp= 0;  // delete list entry
+      }
+    vp+= csv__keyMM;  // take next val in list
+    keyn--;
+    if(keyn>0)  // at least one column will follow
+      write_str(global_csvseparator);
+    }  // for all keys in column list
+  write_str(NL);
+  csv__valn= 0;
+  }  // end   csv_write()
+
+
+
+//------------------------------------------------------------
+// end   Module csv_   csv write module
 //------------------------------------------------------------
 
 
@@ -5738,7 +5955,7 @@ static byte* o5__bufr0= NULL,*o5__bufr1= NULL;
 
 // basis for delta coding
 static int64_t o5_id;
-static uint32_t o5_lat,o5_lon;  //,,,,,
+static uint32_t o5_lat,o5_lon;
 static int64_t o5_cset;
 static int64_t o5_time;
 static int64_t o5_ref[3];  // for node, way, relation
@@ -6412,7 +6629,7 @@ static void str_read(byte** pp,char** s1p,char** s2p) {
 
 static int wo__format= 0;  // output format;
   // 0: o5m; 11: native XML; 12: pbf2osm; 13: Osmosis; 14: Osmium;
-  // -1: PBF;
+  // 21: csv; -1: PBF;
 static bool wo__logaction= false;  // write action for change files,
   // e.g. "<create>", "<delete>", etc.
 static char* wo__xmlclosetag= NULL;  // close tag for XML output;
@@ -6446,6 +6663,7 @@ static inline void wo__author(int32_t hisver,int64_t histime,
   //                     format: just the version will be written;
   // note that when writing o5m format, this procedure needs to be
   // called even if there is no author information to be written;
+  // PBF and csv: this procedure is not called;
   if(global_fakeauthor|global_fakeversion) {
     hisver= 1; histime= 1; hiscset= 1; hisuid= 0; hisuser= "";
     }
@@ -6557,11 +6775,12 @@ static void wo_start(int format,bool bboxvalid,
     int32_t x1,int32_t y1,int32_t x2,int32_t y2,int64_t timestamp) {
   // start writing osm objects;
   // format: 0: o5m; 11: native XML;
-  //         12: pbf2osm; 13: Osmosis; 14: Osmium; -1: PBF;
+  //         12: pbf2osm; 13: Osmosis; 14: Osmium; 21:csv; -1: PBF;
   // bboxvalid: the following bbox coordinates are valid;
   // x1,y1,x2,y2: bbox coordinates (base 10^-7);
   // timestamp: file timestamp; ==0: no timestamp given;
-  if(format<-1 || (format >0 && format<11) || format>14) format= 0;
+  if(format<-1 || (format >0 && format<11) ||
+      (format >14 && format<21) || format>21) format= 0;
   wo__format= format;
   wo__logaction= global_outosc || global_outosh;
   if(wo__format==0) {  // o5m
@@ -6596,6 +6815,8 @@ return;
     pw_header(bboxvalid,x1,y1,x2,y2,timestamp);
 return;
     }
+  if(wo__format==21)  // csv
+return;
   // here: XML
   if(wo__format!=14)
     write_str("<?xml version=\'1.0\' encoding=\'UTF-8\'?>"NL);
@@ -6669,6 +6890,10 @@ static void wo_end() {
     if(wo__format>=12)
       write_str("<!--End of emulated output.-->"NL);
     break;
+  case 21:  // csv
+    csv_write();
+      // (just in case the last object has not been terminated)
+    break;
   case -1:  // PBF
     pw_foot();
     break;
@@ -6681,6 +6906,8 @@ static inline void wo_flush() {
     o5_write();  // write last object - if any
   else if(wo__format<0)  // PBF format
     pw_flush();
+  else if(wo__format==21)  // csv
+    csv_write();
   else  // any XML output format
     wo__CLOSE
   write_flush();
@@ -6692,7 +6919,8 @@ static int wo_format(int format) {
   if(format==-9)  // do not change the format
 return wo__format;
   wo_flush();
-  if(format<-1 || (format >0 && format<11) || format>14) format= 0;
+  if(format<-1 || (format >0 && format<11) ||
+      (format >14 && format<21) || format>21) format= 0;
   wo__format= format;
   wo__logaction= global_outosc || global_outosh;
   return wo__format;
@@ -6726,7 +6954,7 @@ static inline void wo_node(int64_t id,
     o5_byte(0x10);  // data set id for node
     o5_svar64(id-o5_id); o5_id= id;
     wo__author(hisver,histime,hiscset,hisuid,hisuser);
-    o5_svar32(lon-o5_lon); o5_lon= lon;  //,,,,,
+    o5_svar32(lon-o5_lon); o5_lon= lon;
     o5_svar32(lat-o5_lat); o5_lat= lat;
 return;
     }  // end   o5m
@@ -6734,6 +6962,34 @@ return;
     pw_node(id,hisver,histime,hiscset,hisuid,hisuser,lon,lat);
 return;
     }
+  if(wo__format==21) {  // csv
+    char s[20];
+
+    if(csv_key_otype)
+      csv_add("@otype","0");
+    if(csv_key_oname)
+      csv_add("@oname",ONAME(0));
+    if(csv_key_id) {
+      int64toa(id,s);
+      csv_add("@id",s);
+      }
+    if(csv_key_uid) {
+      uint32toa(hisuid,s);
+      csv_add("@uid",s);
+      }
+    if(csv_key_user)
+      csv_add("@user",hisuser);
+    if(csv_key_lon) {
+      write_createsfix7o(lon,s);
+      csv_add("@lon",s);
+      }
+    if(csv_key_lat) {
+      write_createsfix7o(lat,s);
+      csv_add("@lat",s);
+      }
+return;
+    }
+  // here: XML format
   wo__CLOSE
   if(wo__logaction)
     wo__action(hisver==1? 1: 2);
@@ -6778,6 +7034,8 @@ static inline void wo_node_close() {
   // complete writing an OSM node;
   if(wo__format<0)
     pw_node_close();
+  else if(wo__format==21)
+    csv_write();
   }  // end   wo_node_close()
 
 static inline void wo_way(int64_t id,
@@ -6804,6 +7062,26 @@ return;
     pw_way(id,hisver,histime,hiscset,hisuid,hisuser);
 return;
     }
+  if(wo__format==21) {  // csv
+    char s[20];
+
+    if(csv_key_otype)
+      csv_add("@otype","1");
+    if(csv_key_oname)
+      csv_add("@oname",ONAME(1));
+    if(csv_key_id) {
+      int64toa(id,s);
+      csv_add("@id",s);
+      }
+    if(csv_key_uid) {
+      uint32toa(hisuid,s);
+      csv_add("@uid",s);
+      }
+    if(csv_key_user)
+      csv_add("@user",hisuser);
+return;
+    }
+  // here: XML format
   wo__CLOSE
   if(wo__logaction)
     wo__action(hisver==1? 1: 2);
@@ -6832,6 +7110,8 @@ static inline void wo_way_close() {
   // complete writing an OSM way;
   if(wo__format<0)
     pw_way_close();
+  else if(wo__format==21)
+    csv_write();
   }  // end   wo_way_close()
 
 static inline void wo_relation(int64_t id,
@@ -6858,6 +7138,26 @@ return;
     pw_relation(id,hisver,histime,hiscset,hisuid,hisuser);
 return;
     }
+  if(wo__format==21) {  // csv
+    char s[20];
+
+    if(csv_key_otype)
+      csv_add("@otype","2");
+    if(csv_key_oname)
+      csv_add("@oname",ONAME(2));
+    if(csv_key_id) {
+      int64toa(id,s);
+      csv_add("@id",s);
+      }
+    if(csv_key_uid) {
+      uint32toa(hisuid,s);
+      csv_add("@uid",s);
+      }
+    if(csv_key_user)
+      csv_add("@user",hisuser);
+return;
+    }
+  // here: XML format
   wo__CLOSE
   if(wo__logaction)
     wo__action(hisver==1? 1: 2);
@@ -6886,6 +7186,8 @@ static inline void wo_relation_close() {
   // complete writing an OSM relation;
   if(wo__format<0)
     pw_relation_close();
+  else if(wo__format==21)
+    csv_write();
   }  // end   wo_relation_close()
 
 static void wo_delete(int otype,int64_t id,
@@ -6938,6 +7240,8 @@ return;
     pw_way_ref(noderef);
 return;
     }
+  if(wo__format==21)  // csv
+return;
   // here: XML format
   wo__CONTINUE
   switch(wo__format) {  // depending on output format
@@ -6971,6 +7275,8 @@ return;
     pw_relation_ref(refid,reftype,refrole);
 return;
     }
+  if(wo__format==21)  // csv
+return;
   // here: XML format
   wo__CONTINUE
   switch(wo__format) {  // depending on output format
@@ -7011,6 +7317,10 @@ return;
     pw_node_keyval(key,val);
 return;
     }
+  if(wo__format==21) {  // csv
+    csv_add(key,val);
+return;
+    }
   // here: XML format
   wo__CONTINUE
   switch(wo__format) {  // depending on output format
@@ -7042,6 +7352,10 @@ return;
     }  // end   o5m
   if(wo__format<0) {  // PBF
     pw_wayrel_keyval(key,val);
+return;
+    }
+  if(wo__format==21) {  // csv
+    csv_add(key,val);
 return;
     }
   // here: XML format
@@ -8330,7 +8644,8 @@ static int oo_main() {
   // before calling this procedure you must open an input file
   // using oo_open();
   int wformat;  // output format;
-    // 0: o5m; >=10: some different XML formats; -1: PBF;
+    // 0: o5m; 11,12,13,14: some different XML formats;
+    // 21: csv; -1: PBF;
   bool hashactive;
     // must be set to true if border_active OR global_dropbrokenrefs;
   static char o5mtempfile[400];  // must be static because
@@ -8402,6 +8717,7 @@ static int oo_main() {
   else if(global_emulatepbf2osm) wformat= 12;
   else if(global_emulateosmosis) wformat= 13;
   else if(global_emulateosmium) wformat= 14;
+  else if(global_outcsv) wformat= 21;
   else wformat= 11;
   refid= (int64_t*)oo__malloc(sizeof(int64_t)*global_maxrefs);
   refidee= refid+global_maxrefs;
@@ -10622,6 +10938,18 @@ return 0;
       global_mergeversions= true;
   continue;  // take next parameter
       }
+    if((l= strzlcmp(a,"--csv="))>0 && a[l]!=0) {
+        // user-defined columns for csv format
+      csv_ini(a+l);
+      global_outcsv= true;
+  continue;  // take next parameter
+      }
+    if((l= strzlcmp(a,"--csv-separator="))>0 && a[l]!=0) {
+        // user-defined separator for csv format
+      strMcpy(global_csvseparator,a+l);
+      global_outcsv= true;
+  continue;  // take next parameter
+      }
     if(strcmp(a,"--in-josm")==0) {
       // deprecated;
       // this option is still accepted for compatibility reasons;
@@ -10662,6 +10990,11 @@ return 0;
     if(strcmp(a,"--out-pbf")==0) {
         // user wants output in PBF format
       global_outpbf= true;
+  continue;  // take next parameter
+      }
+    if(strcmp(a,"--out-csv")==0) {
+        // user wants output in CSV format
+      global_outcsv= true;
   continue;  // take next parameter
       }
     if(strzcmp(a,"--emulate-pbf2")==0) {
@@ -10842,8 +11175,8 @@ return 0;  // end the program, because without having input files
     }
   if(outputfilename[0]!=0 && !global_outo5m &&
       !global_outo5c && !global_outosm && !global_outosc &&
-      !global_outosh && !global_outpbf && !global_outnone &&
-      !global_outstatistics) {
+      !global_outosh && !global_outpbf && !global_outcsv &&
+      !global_outnone && !global_outstatistics) {
       // have output file name AND  output format not defined
     // try to determine the output format by evaluating
     // the file name extension
@@ -10853,6 +11186,7 @@ return 0;  // end the program, because without having input files
     else if(strycmp(outputfilename,".osc")==0) global_outosc= true;
     else if(strycmp(outputfilename,".osh")==0) global_outosh= true;
     else if(strycmp(outputfilename,".pbf")==0) global_outpbf= true;
+    else if(strycmp(outputfilename,".csv")==0) global_outcsv= true;
     }
   if(write_open(outputfilename[0]!=0? outputfilename: NULL)!=0)
 return 3;
@@ -10898,6 +11232,8 @@ return 7;
     fprintf(stderr,"Tempfiles: %s.*\n",global_tempfilename);
   if(global_alltonodes)
     posi_ini();
+  if(global_outcsv)
+    csv_ini(NULL);
 
   // do the work
   r= oo_main();

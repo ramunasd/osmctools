@@ -1,5 +1,5 @@
-// osmfilter 2012-02-03 20:20
-#define VERSION "1.2M"
+// osmfilter 2012-07-15 19:20
+#define VERSION "1.2N"
 // (c) 2011 Markus Weber, Nuernberg
 //
 // compile this file:
@@ -27,7 +27,7 @@ const char* shorthelptext=
 "--keep-ways=              etc.\n"
 "--keep-relations=              Examples:\n"
 "--keep-nodes-ways=             --keep=\"amenity=pub =bar\"\n"
-"--keep-nodes-relations=        --keep=\"all tunnel=yes lit=yes\"\n"
+"--keep-nodes-relations=        --keep=\"tunnel=yes and lit=yes\"\n"
 "--keep-ways-relations=\n"
 "--drop=                   define which objects are to be dropped\n"
 "--drop-...(see above)=    similar to --keep-...= (see above)\n"
@@ -6050,7 +6050,8 @@ return 0;
       int len;
 
       global_outkey= k;  // we shall create a list of keys
-      if(a[l]=='=') {  // we shall create list of vals to a certain key
+      if(a[l]=='=' && a[l+1]!=0) {
+          // we shall create list of vals to a certain key
         global_outkey= a+l+1;
         len= strlen(global_outkey);
         if(len>=sizeof(k)-2) len= sizeof(k)-3;
