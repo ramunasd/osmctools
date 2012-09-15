@@ -1,6 +1,6 @@
-// osmconvert 2012-07-15 19:30
-#define VERSION "0.7"
-// (c) 2011 Markus Weber, Nuernberg
+// osmconvert 2012-09-09 20:40
+#define VERSION "0.7C"
+// (c) 2011, 2012 Markus Weber, Nuernberg
 //
 // compile this file:
 // gcc osmconvert.c -lz -O3 -o osmconvert
@@ -57,6 +57,7 @@ const char* shorthelptext=
 "--out-csv                 write output in .csv format (plain table)\n"
 "--out-none                no standard output (for testing purposes)\n"
 "--csv=<column names>      choose columns for csv format\n"
+"--csv-headline            start csv output with a headline\n"
 "--csv-separator=<sep>     separator character(s) for csv format\n"
 "--timestamp=<date_time>   add a timestamp to the data\n"
 "--timestamp=NOW-<seconds> add a timestamp in seconds before now\n"
@@ -240,6 +241,9 @@ const char* helptext=
 "        type, id, name. You can change both by using the options\n"
 "        --csv-separator= and --csv=\n"
 "\n"
+"--csv-headline\n"
+"        Choose this option to print a headline to csv output.\n"
+"\n"
 "--csv-separator=<sep>\n"
 "        You may change the default separator (Tab) to a different\n"
 "        character or character sequence. For example:\n"
@@ -321,13 +325,13 @@ const char* helptext=
 "To speed-up the process, the program uses some main memory for a\n"
 "hash table. By default, it uses 320 MiB for storing a flag for every\n"
 "possible node, 60 for the way flags, and 20 relation flags.\n"
-"Every byte holds the flag for 8 ID numbers, i.e., in 320 MiB the\n"
-"program can store 2684 million flags. As there are less than 1300\n"
-"million IDs for nodes at present (May 2011), 160 MiB would suffice.\n"
-"So, for example, you can decrease the hash sizes to e.g. 160, 16 and\n"
+"Every byte holds the flags for 8 ID numbers, i.e., in 320 MiB the\n"
+"program can store 2684 million flags. As there are less than 1900\n"
+"million IDs for nodes at present (July 2012), 240 MiB would suffice.\n"
+"So, for example, you can decrease the hash sizes to e.g. 240, 30 and\n"
 "2 MiB using this option:\n"
 "\n"
-"  --hash-memory=160-16-2\n"
+"  --hash-memory=240-30-2\n"
 "\n"
 "But keep in mind that the OSM database is continuously expanding. For\n"
 "this reason the program-own default value is higher than shown in the\n"
@@ -474,6 +478,7 @@ static bool global_outtimestamp= false;
   // print only the file timestamp, nothing else
 static bool global_statistics= false;  // print statistics to stderr
 static bool global_outstatistics= false;  // print statistics to stdout
+static bool global_csvheadline= false;  // headline for csv
 static char global_csvseparator[16]= "\t";  // separator for csv
 static bool global_completeways= false;  // when applying borders,
   // do not clip ways but include them as whole if at least a single
@@ -2605,6 +2610,23 @@ return;
   write_str(NL);
   csv__valn= 0;
   }  // end   csv_write()
+
+static void csv_headline() {
+  // write a headline to csv output file
+  char* kp;
+  int keyn;
+
+  if(!global_csvheadline)  // headline shall not be written
+return;
+  kp= csv__key;
+  keyn= csv__keyn;
+  while(keyn>0) {  // for all keys in column list
+    csv_add(kp,kp);
+    kp+= csv__keyMM;  // take next key in list
+    keyn--;
+    }  // for all keys in column list
+  csv_write();
+  }  // end   csv_headline()
 
 
 
@@ -4912,7 +4934,7 @@ static inline void pw_node(int64_t id,
   pw__objp= pw__dn_lat; pw__obj_add_sint64(lat-pw__dc_lat);
   pw__dc_lat= lat;
   pw__objp= pw__dn_lon;
-    pw__obj_add_sint64((int64_t)lon-pw__dc_lon);  //,,,,,
+    pw__obj_add_sint64((int64_t)lon-pw__dc_lon);
   pw__dc_lon= lon;
   }  // end   pw_node()
 
@@ -6815,8 +6837,10 @@ return;
     pw_header(bboxvalid,x1,y1,x2,y2,timestamp);
 return;
     }
-  if(wo__format==21)  // csv
+  if(wo__format==21) {  // csv
+    csv_headline();
 return;
+    }
   // here: XML
   if(wo__format!=14)
     write_str("<?xml version=\'1.0\' encoding=\'UTF-8\'?>"NL);
@@ -8696,8 +8720,12 @@ static int oo_main() {
     int32_t lon_min,lon_max;
     int32_t lat_min,lat_max;
     int32_t keyval_pairs_max;
+    int keyval_pairs_otype;
+    int64_t keyval_pairs_oid;
     int32_t noderefs_max;
+    int64_t noderefs_oid;
     int32_t relrefs_max;
+    int64_t relrefs_oid;
     } statistics;
   bool diffcompare;  // the next object shall be compared
     // with the object which has just been read;
@@ -8989,7 +9017,7 @@ return 23;
       if(pb_type<0 || pb_type>2)  // not a regular dataset id
   continue;
       otype= pb_type;
-      oo__alreadyhavepbfobject= false;  //,,,
+      oo__alreadyhavepbfobject= false;
       }  // end   pbf
     else if(oo__ifp->format==0) {  // o5m
       if(b<0x10 || b>0x12) {  // not a regular dataset id
@@ -9721,8 +9749,10 @@ return 26;
           statistics.way_id_min= id;
         if(statistics.way_id_max==0 || id>statistics.way_id_max)
           statistics.way_id_max= id;
-        if(refide-refid>statistics.noderefs_max)
+        if(refide-refid>statistics.noderefs_max) {
+          statistics.noderefs_oid= id;
           statistics.noderefs_max= refide-refid;
+          }
         }
       else if(otype==2) {  // relation
         statistics.relations++;
@@ -9732,8 +9762,10 @@ return 26;
         if(statistics.relation_id_max==0 ||
             id>statistics.relation_id_max)
           statistics.relation_id_max= id;
-        if(refide-refid>statistics.relrefs_max)
+        if(refide-refid>statistics.relrefs_max) {
+          statistics.relrefs_oid= id;
           statistics.relrefs_max= refide-refid;
+          }
         }
       if(histime!=0) {  // timestamp valid
         if(statistics.timestamp_min==0 ||
@@ -9743,8 +9775,11 @@ return 26;
             histime>statistics.timestamp_max)
           statistics.timestamp_max= histime;
         }
-    if(keye-key>statistics.keyval_pairs_max)
-      statistics.keyval_pairs_max= keye-key;
+      if(keye-key>statistics.keyval_pairs_max) {
+        statistics.keyval_pairs_otype= otype;
+        statistics.keyval_pairs_oid= id;
+        statistics.keyval_pairs_max= keye-key;
+        }
       }  // object statistics
 
     // abort writing if user does not want any standard output
@@ -9867,7 +9902,6 @@ return 26;
             else {  // the way is not an area
             // determine the node with has the smallest distance
             // to the center of the bbox ,,,
-#if 1
               n= 0;
               refidp= refid; refxyp= refxy;
               while(refidp<refide) {  // for every referenced node
@@ -9893,7 +9927,6 @@ return 26;
                   }  // there is a coordinate for this reference
                 refidp++; refxyp++;
                 }  // end   for every referenced node
-#endif
               }  // the way is not an area
 
             // write a node as a replacement for the way
@@ -10140,15 +10173,25 @@ return 26;
     if(statistics.relation_id_max!=0)
       fprintf(fi,"relation id max: %"PRIi64"\n",
         statistics.relation_id_max);
-    if(statistics.keyval_pairs_max!=0)
+    if(statistics.keyval_pairs_max!=0) {
       fprintf(fi,"keyval pairs max: %"PRIi32"\n",
         statistics.keyval_pairs_max);
-    if(statistics.noderefs_max!=0)
+      fprintf(fi,"keyval pairs max object: %s %"PRIi64"\n",
+        ONAME(statistics.keyval_pairs_otype),
+        statistics.keyval_pairs_oid);
+      }
+    if(statistics.noderefs_max!=0) {
       fprintf(fi,"noderefs max: %"PRIi32"\n",
         statistics.noderefs_max);
-    if(statistics.relrefs_max!=0)
+      fprintf(fi,"noderefs max object: way %"PRIi64"\n",
+        statistics.noderefs_oid);
+      }
+    if(statistics.relrefs_max!=0) {
       fprintf(fi,"relrefs max: %"PRIi32"\n",
         statistics.relrefs_max);
+      fprintf(fi,"relrefs max object: relation %"PRIi64"\n",
+        statistics.relrefs_oid);
+      }
     }  // print statistics
   return oo__error;
   }  // end   oo_main()
@@ -10941,6 +10984,12 @@ return 0;
     if((l= strzlcmp(a,"--csv="))>0 && a[l]!=0) {
         // user-defined columns for csv format
       csv_ini(a+l);
+      global_outcsv= true;
+  continue;  // take next parameter
+      }
+    if(strcmp(a,"--csv-headline")==0) {
+        // write headline to csv output
+      global_csvheadline= true;
       global_outcsv= true;
   continue;  // take next parameter
       }

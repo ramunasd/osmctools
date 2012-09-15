@@ -1,5 +1,5 @@
-// osmupdate 2012-05-13 21:40
-#define VERSION "0.2J"
+// osmupdate 2012-05-15 14:40
+#define VERSION "0.3"
 // (c) 2011 Markus Weber, Nuernberg
 //
 // This program is free software; you can redistribute it and/or
@@ -95,9 +95,9 @@ const char* helptext=
 "        If you do, please ensure that there are daily change files\n"
 "        available for such a wide range of time.\n"
 "\n"
-"--minutely\n"
-"--hourly\n"
-"--daily\n"
+"--minute\n"
+"--hour\n"
+"--day\n"
 "        By default, osmupdate uses a combination of minutely, hourly\n"
 "        and daily changefiles. If you want to limit these changefile\n"
 "        categories, use one or two of these options and choose that\n"
@@ -133,6 +133,11 @@ const char* helptext=
 "        To accelerate downloads you may specify an alternative\n"
 "        download location. Please enter its URL, or simply the word\n"
 "        \"mirror\" if you want to use gwdg's planet server.\n"
+"\n"
+"--planet-url-suffix=PLANET_URL_SUFFIX\n"
+"        To use old planet URLs, you may need to add the suffix\n"
+"        \"-replicate\" because it was custom to have this word in the\n"
+"        URL, right after the period identifier \"day\" etc.\n"
 "\n"
 "-v\n"
 "--verbose\n"
@@ -494,7 +499,9 @@ static int global_max_merge= 7;
 static const char* global_gzip_parameters= "";
   // parameters for gzip compression
 static char global_planet_url[400]=
-  "http://planet.openstreetmap.org/";
+  "http://planet.openstreetmap.org/replication/";
+static char global_planet_url_suffix[100]="";
+  // for old replication URL, to get "day-replication" instead of "day"
 
 #define PERR(f) \
   fprintf(stderr,"osmupdate Error: " f "\n");
@@ -645,17 +652,19 @@ static int64_t get_newest_changefile_timestamp(
   stecpy(&command_p,command_e,global_planet_url);
   switch(changefile_type) {  // changefile type
   case cft_MINUTELY:
-    stecpy(&command_p,command_e,"minute-replicate/state.txt");
+    stecpy(&command_p,command_e,"minute");
     break;
   case cft_HOURLY:
-    stecpy(&command_p,command_e,"hour-replicate/state.txt");
+    stecpy(&command_p,command_e,"hour");
     break;
   case cft_DAILY:
-    stecpy(&command_p,command_e,"day-replicate/state.txt");
+    stecpy(&command_p,command_e,"day");
     break;
   default:  // invalid change file type
 return 0;
     }  // changefile type
+  stecpy(&command_p,command_e,global_planet_url_suffix);
+  stecpy(&command_p,command_e,"/state.txt");
   #if __WIN32__
     stecpy(&command_p,command_e," -O \"");
     steesccpy(&command_p,command_e,newest_timestamp_file_name);
@@ -759,13 +768,15 @@ static int64_t get_changefile_timestamp(
     stecpy(&command_p,command_e,"wget -nv -c ");
     stecpy(&command_p,command_e,global_planet_url);
     if(changefile_type==cft_MINUTELY)
-      stecpy(&command_p,command_e,"minute-replicate/");
+      stecpy(&command_p,command_e,"minute");
     else if(changefile_type==cft_HOURLY)
-      stecpy(&command_p,command_e,"hour-replicate/");
+      stecpy(&command_p,command_e,"hour");
     else if(changefile_type==cft_DAILY)
-      stecpy(&command_p,command_e,"day-replicate/");
+      stecpy(&command_p,command_e,"day");
     else  // invalid change file type
       return 0;
+    stecpy(&command_p,command_e,global_planet_url_suffix);
+    stecpy(&command_p,command_e,"/");
     /* assemble Sequence path */ {
       int l;
       l= sprintf(command_p,"%03i/%03i/%03i",
@@ -819,9 +830,13 @@ static int64_t get_changefile_timestamp(
       CFTNAME(changefile_type),file_sequence_number,ts)
     }  // verbose mode
   if(changefile_timestamp==0) {  // no timestamp
-    PERRv("no timestamp for %s changefile %i.",
-      CFTNAME(changefile_type),file_sequence_number)
+    if(file_sequence_number==0)  // first file in repository
+      changefile_timestamp= 1;  // set virtual very old timestamp
+    else {
+      PERRv("no timestamp for %s changefile %i.",
+        CFTNAME(changefile_type),file_sequence_number)
 exit(1);
+      }
     }  // no timestamp
 return changefile_timestamp;
   }  // get_changefile_timestamp
@@ -896,17 +911,19 @@ static void process_changefile(
     stecpy(&command_p,command_e,global_planet_url);
     switch(changefile_type) {  // changefile type
     case cft_MINUTELY:
-      stecpy(&command_p,command_e,"minute-replicate/");
+      stecpy(&command_p,command_e,"minute");
       break;
     case cft_HOURLY:
-      stecpy(&command_p,command_e,"hour-replicate/");
+      stecpy(&command_p,command_e,"hour");
       break;
     case cft_DAILY:
-      stecpy(&command_p,command_e,"day-replicate/");
+      stecpy(&command_p,command_e,"day");
       break;
     default:  // invalid change file type
       return;
       }  // changefile type
+    stecpy(&command_p,command_e,global_planet_url_suffix);
+    stecpy(&command_p,command_e,"/");
 
     /* process sequence number */ {
       int l;
@@ -1149,15 +1166,19 @@ return 0;
         }
   continue;  // take next parameter
       }
-    if(strzcmp(a,"--minutely")==0) {  // process minutely data
+    if(strzcmp(a,"--minute")==0) {  // process minutely data
+        // accept "--minute" as well as old syntax "--minutely"
       process_minutely= true;
   continue;  // take next parameter
       }
-    if(strzcmp(a,"--hourly")==0) {  // process hourly data
+    if(strzcmp(a,"--hour")==0) {  // process hourly data
+        // accept "--hour" as well as old syntax "--hourly"
       process_hourly= true;
   continue;  // take next parameter
       }
-    if(strzcmp(a,"--daily")==0) {  // process daily data
+    if(strcmp(a,"--day")==0 || strzcmp(a,"--daily")==0) {
+        // process daily data;
+        // accept "--day" as well as old syntax "--daily"
       process_daily= true;
   continue;  // take next parameter
       }
@@ -1169,7 +1190,7 @@ return 0;
       ap= a+13;
       if(strcmp(ap,"mirror")==0)
         strcpy(global_planet_url,"ftp://ftp5.gwdg.de/pub/misc/"
-          "openstreetmap/planet.openstreetmap.org/");
+          "openstreetmap/planet.openstreetmap.org/replication/");
       else if(strstr(ap,"://")!=NULL)
         strmcpy(global_planet_url,ap,sizeof(global_planet_url)-1);
       else {
@@ -1179,6 +1200,12 @@ return 0;
       sp= strchr(global_planet_url,0);
       if(sp>global_planet_url && sp[-1]!='/') {
         *sp++= '/'; sp= 0; }
+  continue;  // take next parameter
+      }
+    if(strzcmp(a,"--planet-url-suffix=")==0 && a[20]!=0) {
+        // change planet url suffix
+
+      strMcpy(global_planet_url_suffix,a+20);
   continue;  // take next parameter
       }
     if(a[0]=='-') {
