@@ -1,5 +1,5 @@
-// osmfilter 2012-07-15 19:20
-#define VERSION "1.2N"
+// osmfilter 2012-09-22 13:10
+#define VERSION "1.2P"
 // (c) 2011 Markus Weber, Nuernberg
 //
 // compile this file:
@@ -282,7 +282,7 @@ const char* helptext=
 "TAG_FILTER\n"
 "        The tag filter determines which tags will be kept and which\n"
 "        will be not. The example\n"
-"          --keep-tags=highway=motorway =primary\n"
+"          --keep-tags=\"highway=motorway =primary\"\n"
 "        will not accept \"highway\" tags other than \"motorway\" or\n"
 "        \"primary\". Note that neither the object itself will be\n"
 "        deleted, nor the remaining tags. If you want to drop every\n"
@@ -300,15 +300,15 @@ const char* helptext=
 "Tuning\n"
 "\n"
 "To speed-up the process, the program uses some main memory for a\n"
-"hash table. By default, it uses 320 MiB for storing a flag for every\n"
-"possible node, 60 for the way flags, and 20 relation flags.\n"
-"Every byte holds the flags for 8 ID numbers, i.e., in 320 MiB the\n"
-"program can store 2684 million flags. As there are less than 1300\n"
-"million IDs for nodes at present (May 2011), 160 MiB would suffice.\n"
-"So, for example, you can decrease the hash sizes to e.g. 160, 16 and\n"
-"4 MiB (for relations, 2 flags are needed each) using this option:\n"
+"hash table. By default, it uses 480 MB for storing a flag for every\n"
+"possible node, 90 for the way flags, and 30 relation flags.\n"
+"Every byte holds the flags for 8 ID numbers, i.e., in 480 MB the\n"
+"program can store 3840 million flags. As there are less than 1900\n"
+"million IDs for nodes at present (July 2012), 240 MB would suffice.\n"
+"So, for example, you can decrease the hash sizes to e.g. 240, 30 and\n"
+"2 MB (for relations, 2 flags are needed each) using this option:\n"
 "\n"
-"  --hash-memory=160-16-4\n"
+"  --hash-memory=240-30-2\n"
 "\n"
 "But keep in mind that the OSM database is continuously expanding. For\n"
 "this reason the program-own default value is higher than shown in the\n"
@@ -5937,13 +5937,13 @@ return 1;
     if(loglevel>0)  // verbose mode
       fprintf(stderr,"osmfilter Parameter: %.2000s\n",a);
     if(strcmp(a,"-h")==0) {  // user wants parameter overview
-      fprintf(stderr,"%s",shorthelptext);  // print brief help text
+      fprintf(stdout,"%s",shorthelptext);  // print brief help text
         // (took "%s", to prevent oversensitive compiler reactions)
 return 0;
       }
     if(strcmp(a,"-help")==0 || strcmp(a,"--help")==0) {
         // user wants help text
-      fprintf(stderr,"%s",helptext);  // print help text
+      fprintf(stdout,"%s",helptext);  // print help text
         // (took "%s", to prevent oversensitive compiler reactions)
 return 0;
       }
@@ -6199,7 +6199,7 @@ return 3;
   if(global_recursive) {
     int r;
 
-    if(h_n==0) h_n= 400;  // use standard value if not set otherwise
+    if(h_n==0) h_n= 600;  // use standard value if not set otherwise
     if(h_w==0 && h_r==0) {
         // user chose simple form for hash memory value
       // take the one given value as reference and determine the 

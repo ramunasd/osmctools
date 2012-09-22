@@ -1,5 +1,5 @@
-// osmupdate 2012-05-15 14:40
-#define VERSION "0.3"
+// osmupdate 2012-09-22 00:40
+#define VERSION "0.3A"
 // (c) 2011 Markus Weber, Nuernberg
 //
 // This program is free software; you can redistribute it and/or
@@ -1101,7 +1101,7 @@ return 0;  // end the program, because without having parameters
       fprintf(stderr,"osmupdate Parameter: %.2000s\n",a);
     if(strcmp(a,"-h")==0 || strcmp(a,"-help")==0 ||
         strcmp(a,"--help")==0) {  // user wants help text
-      fprintf(stderr,"%s",helptext);  // print help text
+      fprintf(stdout,"%s",helptext);  // print help text
         // (took "%s", to prevent oversensitive compiler reactions)
 return 0;
       }

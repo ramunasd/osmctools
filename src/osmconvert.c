@@ -1,5 +1,5 @@
-// osmconvert 2012-09-09 20:40
-#define VERSION "0.7C"
+// osmconvert 2012-09-22 13:10
+#define VERSION "0.7F"
 // (c) 2011, 2012 Markus Weber, Nuernberg
 //
 // compile this file:
@@ -323,13 +323,13 @@ const char* helptext=
 "Tuning\n"
 "\n"
 "To speed-up the process, the program uses some main memory for a\n"
-"hash table. By default, it uses 320 MiB for storing a flag for every\n"
-"possible node, 60 for the way flags, and 20 relation flags.\n"
-"Every byte holds the flags for 8 ID numbers, i.e., in 320 MiB the\n"
-"program can store 2684 million flags. As there are less than 1900\n"
-"million IDs for nodes at present (July 2012), 240 MiB would suffice.\n"
+"hash table. By default, it uses 480 MB for storing a flag for every\n"
+"possible node, 90 for the way flags, and 30 relation flags.\n"
+"Every byte holds the flags for 8 ID numbers, i.e., in 480 MB the\n"
+"program can store 3840 million flags. As there are less than 1900\n"
+"million IDs for nodes at present (July 2012), 240 MB would suffice.\n"
 "So, for example, you can decrease the hash sizes to e.g. 240, 30 and\n"
-"2 MiB using this option:\n"
+"2 MB using this option:\n"
 "\n"
 "  --hash-memory=240-30-2\n"
 "\n"
@@ -5294,7 +5294,7 @@ return;
 // this module provides procedures to use a temporary file for
 // storing relations' references when --all-to-nodes is used;
 // as usual, all identifiers of a module have the same prefix,
-// in this case 'posi'; an underline will follow for a global
+// in this case 'posr'; an underline will follow for a global
 // accessible identifier, two underlines if the identifier
 // is not meant to be accessed from outside this module;
 // the sections of private and public definitions are separated
@@ -5551,7 +5551,7 @@ static void posr_processing(int* maxrewindp,int32_t** refxy) {
 // this module provides procedures to use a temporary file for
 // storing relation's references;
 // as usual, all identifiers of a module have the same prefix,
-// in this case 'rr_'; an underline will follow in case of a
+// in this case 'rr'; an underline will follow in case of a
 // global accessible object, two underlines in case of objects
 // which are not meant to be accessed from outside this module;
 // the sections of private and public definitions are separated
@@ -7967,7 +7967,9 @@ return;
         char c;
 
         sp++;  // jump over '<'
-        for(;;) {  // jump over "osm "
+        if(strzcmp(sp,"osmAugmentedDiff")==0)
+          global_mergeversions= true;
+        for(;;) {  // jump over "osm ", "osmChange ", "osmAugmentedDiff"
           c= *sp;
           if(oo__wsnul(c))
         break;
@@ -9059,15 +9061,18 @@ return 23;
         otype= 1;
       else if(c=='r' && bufsp[2]=='e')  // relation
         otype= 2;
-      else if(c=='c' || (c=='m' && bufsp[2]=='o') || c=='d') {
-          // create, modify or delete
-        if(c=='d')
+      else if(c=='c' || (c=='m' && bufsp[2]=='o') || c=='d' ||
+          c=='i' || c=='k' || c=='e' ) {
+          // create, modify or delete,
+          // insert, keep or erase
+        if(c=='d' || c=='e')
           oo__ifp->deleteobject= 2;
         read_bufp= bufp+1;
   continue;
-        }   // end   create, modify or delete
+        }   // end   create, modify or delete,
+            // resp. insert, keep or erase
       else if(c=='/') {  // xml end object
-        if(bufsp[2]=='d')  // end of delete
+        if(bufsp[2]=='d' || bufsp[2]=='e')  // end of delete or erase
           oo__ifp->deleteobject= 0;
         else if(strzcmp(bufsp+2,"osm>")==0) {  // end of file
           oo__ifp->endoffile= true;
@@ -9077,7 +9082,14 @@ return 23;
           }   // end   end of file
         else if(strzcmp(bufsp+2,"osmChange>")==0) {  // end of file
           oo__ifp->endoffile= true;
-          read_bufp= bufp+12;
+          read_bufp= bufp+6+6;
+          while(oo__ws(*read_bufp)) read_bufp++;
+  continue;
+          }   // end   end of file
+        else if(strzcmp(bufsp+2,"osmAugmentedDiff>")==0) {
+            // end of file
+          oo__ifp->endoffile= true;
+          read_bufp= bufp+6+13;
           while(oo__ws(*read_bufp)) read_bufp++;
   continue;
           }   // end   end of file
@@ -9346,7 +9358,7 @@ return 23;
       for(;;) {  // until break;
         r= oo__xmltag();
         if(oo__xmlheadtag) {  // still in object header
-          if(oo__xmlkey[0]=='i') // id
+          if(oo__xmlkey[0]=='i' && oo__xmlkey[1]=='d') // id
             id= oo__strtosint64(oo__xmlval);
           else if(oo__xmlkey[0]=='l') {  // letter l
             if(oo__xmlkey[1]=='o') // lon
@@ -9844,7 +9856,7 @@ return 26;
           hash_seti(1,id);  // memorize that this way lies inside
         if(!global_dropways) {  // not ways to drop
           if(global_alltonodes) {
-              // ways are to be converted to nodes
+              // all ways are to be converted to nodes
             int32_t x_min,x_max,y_min,y_max;
             int32_t x_middle,y_middle,xy_distance,new_distance;
             bool is_area;
@@ -10049,7 +10061,7 @@ return 26;
           inside= true;
         if(inside) {  // no borders OR at least one node inside
           if(global_alltonodes && dependencystage==33) {
-              // relations are to be converted to nodes AND
+              // all relations are to be converted to nodes AND
               // 33:     write each relation which has a flag in ht
               //           to output; use temporary .o5m file as input;
             if(id>=global_otypeoffset05 || id<=-global_otypeoffset05)
@@ -10896,13 +10908,13 @@ return 1;
     if(loglevel>0)  // verbose mode
       fprintf(stderr,"osmconvert Parameter: %.2000s\n",a);
     if(strcmp(a,"-h")==0) {  // user wants parameter overview
-      fprintf(stderr,"%s",shorthelptext);  // print brief help text
+      fprintf(stdout,"%s",shorthelptext);  // print brief help text
         // (took "%s", to prevent oversensitive compiler reactions)
 return 0;
       }
     if(strcmp(a,"-help")==0 || strcmp(a,"--help")==0) {
         // user wants help text
-      fprintf(stderr,"%s",helptext);  // print help text
+      fprintf(stdout,"%s",helptext);  // print help text
         // (took "%s", to prevent oversensitive compiler reactions)
 return 0;
       }
@@ -11247,7 +11259,7 @@ return 3;
         "-b=, -B=, --drop-brokenrefs must not be combined with --diff");
 return 6;
       }
-    if(h_n==0) h_n= 400;  // use standard value if not set otherwise
+    if(h_n==0) h_n= 600;  // use standard value if not set otherwise
     if(h_w==0 && h_r==0) {
         // user chose simple form for hash memory value
       // take the one given value as reference and determine the 
