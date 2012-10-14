@@ -1,9 +1,11 @@
-// osmconvert 2012-09-22 13:10
-#define VERSION "0.7F"
-// (c) 2011, 2012 Markus Weber, Nuernberg
+// osmconvert 2012-10-14 18:10
+#define VERSION "0.7G"
 //
 // compile this file:
 // gcc osmconvert.c -lz -O3 -o osmconvert
+//
+// (c) 2011, 2012 Markus Weber, Nuernberg
+// Richard Russo contributed the --all-to-nodes-bbox option
 //
 // This program is free software; you can redistribute it and/or
 // modify it under the terms of the GNU Affero General Public License
@@ -30,6 +32,7 @@ const char* shorthelptext=
 "--complete-ways           do not clip ways at the borders\n"
 "--complex-ways            do not clip multipolygons at the borders\n"
 "--all-to-nodes            convert ways and relations to nodes\n"
+"--all-to-nodes-bbox       converts to nodes and adds bbox tags\n"
 "--object-type-offset=<id> offset for ways/relations if --all-to-nodes\n"
 "--max-objects=<n>         space for --all-to-nodes, 1 obj. = 16 bytes\n"
 "--drop-broken-refs        delete references to excluded nodes\n"
@@ -127,6 +130,15 @@ const char* helptext=
 "        10^15 and taken as id for the new node. The node's longitude\n"
 "        and latitude are set to the way's geographical center. Same\n"
 "        applies to relations, however they get 2*10^15 as id offset.\n"
+"\n"
+"--all-to-nodes-bbox\n"
+"        If applying the --all-to-nodes option as explained above, you\n"
+"        may want to get the bounding box for the ways and relations\n"
+"        that are converted into nodes.\n"
+"        Apply this option if you want to add a tag \"bBox\" to the\n"
+"        converted objects, the value will be min Longitude, min\n"
+"        Latitude, max Longitude , max Latitude, for example: \n"
+"          <tag k=\"bBox\" v=\"-0.5000,51.0000,0.5000,52.0000\"/>\n"
 "\n"
 "--object-type-offset=<id offset>\n"
 "        If applying the --all-to-nodes option as explained above, you\n"
@@ -357,12 +369,13 @@ const char* helptext=
 "\n"
 "There is another temporary memory space which is used only for the\n"
 "conversion of ways and relations to nodes (option --all-to-nodes).\n"
-"This space is sufficient for up to 25 Mio. OSM objects, it needs\n"
-"400 MB of your memory for this purpose. If this is not sufficient or\n"
+"This space is sufficient for up to 25 Mio. OSM objects, 400 MB of\n"
+"main memory are needed for this purpose, 800 MB if extended option\n"
+"--all-to-nodes-bbox has been invoked. If this is not sufficient or\n"
 "if you want to save memory, you can configure the maximum number of\n"
 "OSM objects by yourself. For example:\n"
 "\n"
-"  --max-objects=45000000\n"
+"  --max-objects=35000000\n"
 "\n"
 "The number of references per object is limited to 100,000. This will\n"
 "be sufficient for all OSM files. If you are going to create your own\n"
@@ -488,6 +501,8 @@ static bool global_complexways= false;  // same as global_completeways,
   // nodes), even when only a single nodes lies inside the borders;
 static bool global_alltonodes= false;
   // convert all ways and all relations to nodes
+static bool global_alltonodes_bbox = false;
+  // add bBox tag to ways and relations when converting to nodes
 static int64_t global_maxobjects= 25000000;
 static int64_t global_otypeoffset10= INT64_C(1000000000000000);
   // if global_alltonodes:
@@ -1556,7 +1571,7 @@ static int read_open(const char* filename) {
   //             ==NULL: standard input;
   // return: 0: ok; !=0: error;
   // read_infop: handle of the file;
-  // note that you should close ever opened file with read_close()
+  // note that you should close every opened file with read_close()
   // before the program ends;
 
   // save status of presently processed input file (if any)
@@ -1583,7 +1598,7 @@ return 1;
     strcpy(read_infop->filename,"standard input");
   else
     strMcpy(read_infop->filename,filename);
-  read_infop->eof= false;  // we are at the end of input file
+  read_infop->eof= false;  // we are not at the end of input file
   read_infop->bufp= read_infop->bufe= read__buf;  // pointer in buf[]
     // pointer to the end of valid input in buf[]
   read_infop->counter= 0;
@@ -2306,6 +2321,22 @@ static inline void write_createsfix7o(int32_t v,char* s) {
     { c= *s1; *s1= *s2; *s2= c; s1++; s2--; }
   }  // end write_createsfix7o()
 
+static inline void write_createsbbox(int32_t x_min, int32_t y_min,
+    int32_t x_max, int32_t y_max, char* s) {
+  char y_minS[20], x_minS[20], y_maxS[20], x_maxS[20];
+  write_createsfix7o(x_min, x_minS);
+  write_createsfix7o(y_min, y_minS);
+  write_createsfix7o(x_max, x_maxS);
+  write_createsfix7o(y_max, y_maxS);
+  s = stpcpy0(s, x_minS);
+  s = stpcpy0(s, ",");
+  s = stpcpy0(s, y_minS);
+  s = stpcpy0(s, ",");
+  s = stpcpy0(s, x_maxS);
+  s = stpcpy0(s, ",");
+  s = stpcpy0(s, y_maxS);
+  } // end write_createsbbox()
+
 static inline void write_sfix7(int32_t v) {
   // write a signed 7 decimals fixpoint value to standard output;
   char s[20],*s1,*s2,c;
@@ -2627,8 +2658,6 @@ return;
     }  // for all keys in column list
   csv_write();
   }  // end   csv_headline()
-
-
 
 //------------------------------------------------------------
 // end   Module csv_   csv write module
@@ -5174,10 +5203,14 @@ static inline void pw_relation_close() {
 
 struct posi__mem_struct {  // element of position array
   int64_t id;
-  int32_t x,y;
+  int32_t data[];
   } __attribute__((__packed__));
   // (do not change this structure; the search algorithm expects
-  // the size of this structure to be 16 bytes)
+  // the size of this structure to be 16 or 32 bytes)
+  // data[] stands for either
+  //   int32_t x,y;
+  // or
+  //   int32_t x,y,x1,y1,x2,y2;  // (including bbox)
   // remarks to .x:
   // if you get posi_nil as value for x, you may assume that
   // the object has been stored, but its geoposition is unknown;
@@ -5214,6 +5247,12 @@ static void posi__end() {
 
 //------------------------------------------------------------
 
+static size_t posi__mem_size= 0;  // size of structure
+static size_t posi__mem_increment= 0;
+  // how many increments to ++ when allocating
+static size_t posi__mem_mask= 0;
+  // bitmask to start at base of structure
+
 static int posi_ini() {
   // initialize the posi module;
   // return: 0: OK; 1: not enough memory;
@@ -5228,7 +5267,17 @@ static int posi_ini() {
 return 0;
   atexit(posi__end);  // chain-in the clean-up procedure
   // allocate memory for the positions array
-  siz= sizeof(posi__mem_t)*global_maxobjects;
+  if (global_alltonodes_bbox) {
+    posi__mem_size = 32;
+    posi__mem_mask = ~0x1f;
+    posi__mem_increment = 4;
+    }
+  else {
+    posi__mem_size = 16;
+    posi__mem_mask = ~0x0f;
+    posi__mem_increment = 2;
+  }
+  siz= posi__mem_size*global_maxobjects;
   posi__mem= (posi__mem_t*)malloc(siz);
   if(posi__mem==NULL)  // not enough memory
 return 1;
@@ -5244,9 +5293,15 @@ static inline void posi_set(int64_t id,int32_t x,int32_t y) {
   if(posi__meme>=posi__memee)  // not enough space in position array
     exit(70001);
   posi__meme->id= id;
-  posi__meme->x= x;
-  posi__meme->y= y;
-  posi__meme++;
+  posi__meme->data[0]= x;
+  posi__meme->data[1]= y;
+  if (global_alltonodes_bbox) {
+    posi__meme->data[2]= x; // x_min
+    posi__meme->data[3]= y; // y_min
+    posi__meme->data[4]= x; // x_max
+    posi__meme->data[5]= y; // y_max
+    }
+  posi__meme+= posi__mem_increment;
   }  // end   posi_set()
 
 static const int32_t posi_nil= 2000000000L;
@@ -5266,7 +5321,7 @@ static inline void posi_get(int64_t id) {
   min= (char*)posi__mem;
   max= (char*)posi__meme;
   while(max>min) {  // binary search
-    middle= (((max-min-16)/2)&(~0x0f) )+min;
+    middle= (((max-min-posi__mem_size)/2)&(posi__mem_mask))+min;
     middle_id= *(int64_t*)middle;
     if(middle_id==id) {  // we found the right object
       posi_xy= (int32_t*)(middle+8);
@@ -5275,7 +5330,7 @@ return;
     if(middle_id>id)
       max= middle;
     else
-      min= middle+16;
+      min= middle+posi__mem_size;
     }  // binary search
   // here: did not find the geoposition of the object in question
   posi_xy= NULL;
@@ -5453,6 +5508,12 @@ static void posr_processing(int* maxrewindp,int32_t** refxy) {
           y_middle= (y_max+y_min)/2;
           // store the coordinates for this relation
 //DPv(is_area %i refxy %i,is_area,refxyp==refxy)
+          if(global_alltonodes_bbox) {
+            xy_rel[2]= x_min;
+            xy_rel[3]= y_min;
+            xy_rel[4]= x_max;
+            xy_rel[5]= y_max;
+            }
           if(is_area || refxyp==refxy) {
             // take the center as position for this relation
             xy_rel[0]= x_middle;
@@ -5512,9 +5573,28 @@ static void posr_processing(int* maxrewindp,int32_t** refxy) {
         }
       *refxyp++= posi_xy;  // store coordinate for reprocessing later
       if(n==0) {  // first coordinate
-        // just store it as min and max
-        x_min= x_max= posi_xy[0];
-        y_min= y_max= posi_xy[1];
+        if(global_alltonodes_bbox) {
+          x_min = posi_xy[2];
+          y_min = posi_xy[3];
+          x_max = posi_xy[4];
+          y_max = posi_xy[5];
+          }
+        else {
+          // just store it as min and max
+          x_min= x_max= posi_xy[0];
+          y_min= y_max= posi_xy[1];
+          }
+        }
+      else if(global_alltonodes_bbox) {
+        // adjust extrema
+        if(posi_xy[2]<x_min && x_min-posi_xy[2]<900000000)
+          x_min= posi_xy[2];
+        else if(posi_xy[4]>x_max && posi_xy[4]-x_max<900000000)
+          x_max= posi_xy[4];
+        if(posi_xy[3]<y_min)
+          y_min= posi_xy[3];
+        else if(posi_xy[5]>y_max)
+          y_max= posi_xy[5];
         }
       else {  // additional coordinate
         // adjust extrema
@@ -6200,7 +6280,7 @@ static inline void o5_type(int type) {
   // should be called every time a new object is started to be
   // written into o5_buf[];
   // type: object type; 0: node; 1: way; 2: relation;
-  //       if object type hase changed, a 0xff byte ("reset")
+  //       if object type has changed, a 0xff byte ("reset")
   //       will be written;
   static int oldtype= -1;
 
@@ -6306,6 +6386,10 @@ static inline int stw__hash(const char* s1,const char* s2) {
   uint32_t c;
   int len;
 
+  #if 0  // not used because strings would not be transparent anymore
+  if(*s1==(char)0xff)  // string is marked as 'do-not-store';
+return -1;
+    #endif
   len= stw__tabstrM;
   h= 0;
   for(;;) {
@@ -6324,7 +6408,7 @@ static inline int stw__hash(const char* s1,const char* s2) {
 return -1;
   h%= stw__hashtabM;
   return h;
-  }  // end   stw_hash()
+  }  // end   stw__hash()
 
 static inline int stw__getref(int stri,const char* s1,const char* s2) {
   // get the string reference of a string pair;
@@ -6484,7 +6568,7 @@ return;
 // strings which have been stored in data stream objects to
 // c-formatted strings;
 // as usual, all identifiers of a module have the same prefix,
-// in this case 'str'; an underline will follow in case of a
+// in this case 'str'; one underline will follow in case of a
 // global accessible object, two underlines in case of objects
 // which are not meant to be accessed from outside this module;
 // the sections of private and public definitions are separated
@@ -6536,8 +6620,7 @@ static str_info_t* str_open() {
   prev= str__infop;
   str__infop= (str_info_t*)malloc(sizeof(str_info_t));
   if(str__infop==NULL) {
-    fprintf(stderr,"osmconvert Error: "
-      "could not get memory for string buffer.\n");
+    PERR("could not get memory for string buffer.")
 return NULL;
     }
   str__infop->tabi= 0;
@@ -6581,15 +6664,23 @@ static void str_read(byte** pp,char** s1p,char** s2p) {
   char* p;
   int len1,len2;
   int ref;
+  bool donotstore;  // string has 'do not store flag'  2012-10-01 ,,,,,
 
   p= (char*)*pp;
   if(*p==0) {  // string (pair) given directly
-    *s1p= ++p;
+    p++;
+    donotstore= false;
+    #if 0  // not used because strings would not be transparent anymore
+    if(*p==(char)0xff) {  // string has 'do-not-store' flag
+      donotstore= true;
+      p++;
+      }  // string has 'do-not-store' flag
+      #endif
+    *s1p= p;
     len1= strlen(p);
     p+= len1+1;
     if(s2p==NULL) {  // single string
-      //p= strchr(p,0)+1;  // jump over second string (if any)
-      if(len1<=str__tabstrM) {
+      if(!donotstore && len1<=str__tabstrM) {
           // single string short enough for string table
         stpcpy0(str__infop->tab[str__infop->tabi],*s1p)[1]= 0;
           // add a second terminator, just in case someone will try
@@ -6602,7 +6693,7 @@ static void str_read(byte** pp,char** s1p,char** s2p) {
       *s2p= p;
       len2= strlen(p);
       p+= len2+1;
-      if(len1+len2<=str__tabstrM) {
+      if(!donotstore && len1+len2<=str__tabstrM) {
           // string pair short enough for string table
         memcpy(str__infop->tab[str__infop->tabi],*s1p,len1+len2+2);
         if(++str__infop->tabi>=str__tabM) str__infop->tabi= 0;
@@ -7334,6 +7425,13 @@ return;
 static inline void wo_node_keyval(const char* key,const char* val) {
   // write an OSM node object's keyval;
   if(wo__format==0) {  // o5m
+    #if 0  // not used because strings would not be transparent anymore
+    if(key[1]=='B' && strcmp(key,"bBox")==0 && strchr(val,',')!=0)
+        // value is assumed to be dynamic, hence it should not be
+        // stored in string list;
+      // mark string pair as 'do-not-store';
+      key= "\xff""bBox";  // 2012-10-14
+      #endif
     stw_write(key,val);
 return;
     }  // end   o5m
@@ -9951,6 +10049,11 @@ return 26;
                 id_new= id+global_otypeoffset10;
               wo_node(id_new,
                 hisver,histime,hiscset,hisuid,hisuser,lon,lat);
+              if (global_alltonodes_bbox) {
+                char bboxbuf[84];
+                write_createsbbox(x_min, y_min, x_max, y_max, bboxbuf);
+                wo_node_keyval("bBox", bboxbuf);
+                }
               keyp= key; valp= val;
               while(keyp<keye)  // for all key/val pairs of this object
                 wo_node_keyval(*keyp++,*valp++);
@@ -10080,6 +10183,12 @@ return 26;
               wo_node(id_new,
                 hisver,histime,hiscset,hisuid,hisuser,
                 posi_xy[0],posi_xy[1]);
+              if (global_alltonodes_bbox) {
+                char bboxbuf[84];
+                write_createsbbox(posi_xy[2], posi_xy[3],
+                  posi_xy[4], posi_xy[5], bboxbuf);
+                wo_node_keyval("bBox", bboxbuf);
+                }
               keyp= key; valp= val;
               while(keyp<keye)  // for all key/val pairs of this object
                 wo_node_keyval(*keyp++,*valp++);
@@ -11107,6 +11216,13 @@ return 0;
     if(strcmp(a,"--all-to-nodes")==0) {
         // convert ways and relations to nodes
       global_alltonodes= true;
+  continue;  // take next parameter
+      }
+    if(strcmp(a,"--all-to-nodes-bbox")==0) {
+        // convert ways and relations to nodes,
+        // and compute a bounding box
+      global_alltonodes= true;
+      global_alltonodes_bbox= true;
   continue;  // take next parameter
       }
     if((l= strzlcmp(a,"--max-objects="))>0 && a[l]!=0) {
