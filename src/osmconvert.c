@@ -1,5 +1,5 @@
-// osmconvert 2012-10-14 18:10
-#define VERSION "0.7G"
+// osmconvert 2012-11-20 19:50
+#define VERSION "0.7H"
 //
 // compile this file:
 // gcc osmconvert.c -lz -O3 -o osmconvert
@@ -843,20 +843,20 @@ static inline bool pbf_jump(byte** pp) {
   type= *p & 0x07;
   switch(type) {  // protobuf type
   case 0:  // Varint
-    while(*p & 80) p++; p++;  // jump over id
-    while(*p & 80) p++; p++;  // jump over data
+    while(*p & 0x80) p++; p++;  // jump over id
+    while(*p & 0x80) p++; p++;  // jump over data
     break;
   case 1: // fixed 64 bit;
-    while(*p & 80) p++; p++;  // jump over id
+    while(*p & 0x80) p++; p++;  // jump over id
     p+= 4;  // jump over data
     break;
   case 2:  // String
-    while(*p & 80) p++; p++;  // jump over id
+    while(*p & 0x80) p++; p++;  // jump over id
     u= pbf_uint32(&p);
     p+= u;  // jump over string contents
     break;
   case 5: // fixed 32 bit;
-    while(*p & 80) p++; p++;  // jump over id
+    while(*p & 0x80) p++; p++;  // jump over id
     p+= 2;  // jump over data
     break;
   default:  // unknown id
