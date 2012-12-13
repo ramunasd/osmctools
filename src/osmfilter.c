@@ -1,6 +1,6 @@
-// osmfilter 2012-09-22 13:10
-#define VERSION "1.2P"
-// (c) 2011 Markus Weber, Nuernberg
+// osmfilter 2012-12-13 18:30
+#define VERSION "1.2R"
+// (c) 2011, 2012 Markus Weber, Nuernberg
 //
 // compile this file:
 // gcc osmfilter.c -O3 -o osmfilter
@@ -3744,15 +3744,20 @@ static void str_read(byte** pp,char** s1p,char** s2p) {
   char* p;
   int len1,len2;
   int ref;
+  bool donotstore;  // string has 'do not store flag'  2012-10-01 ,,,,,
 
   p= (char*)*pp;
   if(*p==0) {  // string (pair) given directly
-    *s1p= ++p;
+    donotstore= false;
+    if(*++p==0xff) {  // string has 'do not store flag'
+      donotstore= true;
+      p++;
+      }  // string has 'do not store flag'
+    *s1p= p;
     len1= strlen(p);
     p+= len1+1;
     if(s2p==NULL) {  // single string
-      //p= strchr(p,0)+1;  // jump over second string (if any)
-      if(len1<=str__tabstrM) {
+      if(!donotstore && len1<=str__tabstrM) {
           // single string short enough for string table
         stpcpy0(str__infop->tab[str__infop->tabi],*s1p)[1]= 0;
           // add a second terminator, just in case someone will try
@@ -3765,7 +3770,7 @@ static void str_read(byte** pp,char** s1p,char** s2p) {
       *s2p= p;
       len2= strlen(p);
       p+= len2+1;
-      if(len1+len2<=str__tabstrM) {
+      if(!donotstore && len1+len2<=str__tabstrM) {
           // string pair short enough for string table
         memcpy(str__infop->tab[str__infop->tabi],*s1p,len1+len2+2);
         if(++str__infop->tabi>=str__tabM) str__infop->tabi= 0;
@@ -5106,6 +5111,7 @@ return 0;
           // too close to end of prefetched data
         read_bufp= (byte*)sp;
         read_input();
+        sp= (char*)read_bufp;
         }
       c1= sp[1]; c2= sp[2]; c3= sp[3];
       if(c1=='n' && c2=='o' && c3=='d')
@@ -5418,11 +5424,11 @@ return 16;
   continue;
         }
       c= bufsp[1];
-      if(c=='n' && bufsp[2]=='o')  // node
+      if(c=='n' && bufsp[2]=='o' && bufsp[3]=='d')  // node 2012-12-13
         otype= 0;
-      else if(c=='w' && bufsp[2]=='a')  // way
+      else if(c=='w' && bufsp[2]=='a' && bufsp[3]=='y')  // way
         otype= 1;
-      else if(c=='r' && bufsp[2]=='e')  // relation
+      else if(c=='r' && bufsp[2]=='e' && bufsp[3]=='l')  // relation
         otype= 2;
       else if(c=='c' || (c=='m' && bufsp[2]=='o') || c=='d') {
           // create, modify or delete
@@ -5897,7 +5903,7 @@ return 0;  // end the program, because without having parameters
       break;
           }
         ap= strchr(ap,0);  // find end of string
-        while(ap>aa && ap[-1]=='\n')
+        while(ap>aa && (ap[-1]=='\r' || ap[-1]=='\n'))
           *--ap= 0;  // cut newline chars
         *ap++= ' '; *ap= 0;  // add a space
         }

@@ -1,5 +1,5 @@
-// osmconvert 2012-11-20 19:50
-#define VERSION "0.7H"
+// osmconvert 2012-12-12 18:00
+#define VERSION "0.7L"
 //
 // compile this file:
 // gcc osmconvert.c -lz -O3 -o osmconvert
@@ -3488,6 +3488,22 @@ return 0;
             l= pbf_uint32(&bp);
             bp+= l;  // (ignore this element)
             break;
+          case 0x80:  // 0x02 V 32, osmosis_replication_timestamp ,,,
+            if(bp[1]!=0x02) goto h_unknown;
+            bp+= 2;
+            pb_filetimestamp= pbf_uint64(&bp);
+            break;
+          case 0x88:  // 0x02 V 33, osmosis_replication_sequence_number
+            if(bp[1]!=0x02) goto h_unknown;
+            bp+= 2;
+            pbf_uint64(&bp);  // (ignore this element)
+            break;
+          case 0x92:  // 0x02 S 34, osmosis_replication_base_url
+            if(bp[1]!=0x02) goto h_unknown;
+            bp+= 2;
+            l= pbf_uint32(&bp);
+            bp+= l;  // (ignore this element)
+            break;
           default:
           h_unknown:
             WARNv("header block element type unknown: "
@@ -4881,6 +4897,10 @@ static void pw_header(bool bboxvalid,
   pw__obj_add_str("osmconvert "VERSION);
   pw__obj_add_id2(0x8a01);  // S 17 'source'
   pw__obj_add_str("http://www.openstreetmap.org/api/0.6");
+  if(timestamp!=0) {  // file timestamp given
+    pw__obj_add_id2(0x8002);  // V 32 osmosis_replication_timestamp ,,,
+    pw__obj_add_uint64(timestamp);
+    }  // file timestamp given
   /* write 'raw_size' into hierarchy object's header */ {
     uint32_t v,frac;
     byte* bp;
@@ -8282,12 +8302,10 @@ return 0;
 return 1;
     }
   else if(format==-1) {  // pbf
-#if 1  //,,,
-    while(pb_type>2) {  // not an OSM object
+    while(pb_type>2) {  // not an OSM object ,,,
       pb_input(false);
       oo__alreadyhavepbfobject= true;
       }
-#endif
     if((pb_type & 3)!=pb_type)  // still not an osm object
 return 1;
     oo__ifp->tyid= idoffset[pb_type]+pb_id;
@@ -10010,7 +10028,7 @@ return 26;
               lat= y_middle;
               }
             else {  // the way is not an area
-            // determine the node with has the smallest distance
+            // determine the node which has the smallest distance
             // to the center of the bbox ,,,
               n= 0;
               refidp= refid; refxyp= refxy;
@@ -10036,6 +10054,7 @@ return 26;
                   n++;
                   }  // there is a coordinate for this reference
                 refidp++; refxyp++;
+              //break; //<- uncomment to use the first node of each way
                 }  // end   for every referenced node
               }  // the way is not an area
 
@@ -10977,7 +10996,7 @@ return 0;
       break;
           }
         ap= strchr(ap,0);  // find end of string
-        while(ap>aa && ap[-1]=='\n')
+        while(ap>aa && (ap[-1]=='\r' || ap[-1]=='\n'))
           *--ap= 0;  // cut newline chars
         *ap++= ' '; *ap= 0;  // add a space
         }
