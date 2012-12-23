@@ -1,5 +1,5 @@
-// osmfilter 2012-12-13 18:30
-#define VERSION "1.2R"
+// osmfilter 2012-12-16 11:00
+#define VERSION "1.2S"
 // (c) 2011, 2012 Markus Weber, Nuernberg
 //
 // compile this file:
@@ -2701,14 +2701,16 @@ static int fil_plausi() {
             // change to 'or'
           fp[0].left_bracketn++;
             if(loglevel>=2)
-              PINFOv("inserting[%i][%i]: \"(\"",ft,fp-fil__pair[ft])
+              PINFOv("inserting[%i][%i]: \"(\"",
+                ft,(int)(fp-fil__pair[ft]))
           }
         else if(!fp[-1].operator && fp>f &&
             (fp[0].operator || fp==fe-1)) {
             // change to 'and'
           fp[0].right_bracketn++;
             if(loglevel>=2)
-              PINFOv("inserting[%i][%i]: \")\"",ft,fp-fil__pair[ft])
+              PINFOv("inserting[%i][%i]: \")\"",
+                ft,(int)(fp-fil__pair[ft]))
           }
         fp++;
         }  // for every key/val pair in filter
@@ -3748,11 +3750,14 @@ static void str_read(byte** pp,char** s1p,char** s2p) {
 
   p= (char*)*pp;
   if(*p==0) {  // string (pair) given directly
+    p++;
     donotstore= false;
-    if(*++p==0xff) {  // string has 'do not store flag'
+    #if 0  // not used because strings would not be transparent anymore
+    if(*p==(char)0xff) {  // string has 'do-not-store' flag
       donotstore= true;
       p++;
-      }  // string has 'do not store flag'
+      }  // string has 'do-not-store' flag
+      #endif
     *s1p= p;
     len1= strlen(p);
     p+= len1+1;

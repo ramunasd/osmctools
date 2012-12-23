@@ -1,5 +1,5 @@
-// osmconvert 2012-12-12 18:00
-#define VERSION "0.7L"
+// osmconvert 2012-12-23 16:20
+#define VERSION "0.7M"
 //
 // compile this file:
 // gcc osmconvert.c -lz -O3 -o osmconvert
@@ -6684,7 +6684,7 @@ static void str_read(byte** pp,char** s1p,char** s2p) {
   char* p;
   int len1,len2;
   int ref;
-  bool donotstore;  // string has 'do not store flag'  2012-10-01 ,,,,,
+  bool donotstore;  // string has 'do not store flag'  2012-10-01 ,,,
 
   p= (char*)*pp;
   if(*p==0) {  // string (pair) given directly
@@ -8008,15 +8008,44 @@ static int64_t oo__timestamp= 0;
   // ==0: no file timestamp given;
 static bool oo__alreadyhavepbfobject= false;
 
+static void oo__mergebbox(int32_t bbx1,int32_t bby1,
+    int32_t bbx2,int32_t bby2) {
+  // merge new bbox coordinates to existing ones;
+  // if there are no bbox coordinates at present,
+  // just store the new coordinates;
+  // bbx1 .. bby2: border box coordinates to merge;
+  // return:
+  // oo__bbvalid: following border box information is valid;
+  // oo__bbx1 .. oo__bby2: border box coordinates;
+
+  if(!oo__bbvalid) {  // not yet any bbox stored
+    // just store the new coordinates as bbox
+    oo__bbx1= bbx1;
+    oo__bby1= bby1;
+    oo__bbx2= bbx2;
+    oo__bby2= bby2;
+    oo__bbvalid= true;
+    }  // not yet any bbox stored
+  else {  // there is already a bbox
+    // merge the new coordinates with the existing bbox
+    if(bbx1<oo__bbx1) oo__bbx1= bbx1;
+    if(bby1<oo__bby1) oo__bby1= bby1;
+    if(bbx2>oo__bbx2) oo__bbx2= bbx2;
+    if(bby2>oo__bby2) oo__bby2= bby2;
+    }  // there is already a bbox
+  }  // oo__mergebbox()
+
 static void oo__findbb() {
   // find timestamp and border box in input file;
   // return:
   // oo__bbvalid: following border box information is valid;
   // oo__bbx1 .. oo__bby2: border box coordinates;
-
   // read_bufp will not be changed;
   byte* bufp,*bufe;
+  int32_t bbx1= 0,bby1= 0,bbx2= 0,bby2= 0;
+    // bbox coordinates (base 10^-7)
 
+  bbx1= bby1= bbx2= bby2= 0;
   read_input();
   bufp= read_bufp; bufe= read_bufe;
   if(oo__ifp->format==0) {  // o5m
@@ -8032,8 +8061,7 @@ return;
     continue;
         }  // end   single byte dataset
       // here: non-object multibyte dataset
-      if(b==0xdc) {
-          // timestamp
+      if(b==0xdc) {  // timestamp
         bufp++;
         l= pbf_uint32(&bufp);
         bufe= bufp+l;
@@ -8041,17 +8069,16 @@ return;
         bufp= bufe;
     continue;
         }  // timestamp
-      if(b==0xdb && oo__ifp==oo__if) {
-          // border box AND first input file
+      if(b==0xdb) {  // border box
         bufp++;
         l= pbf_uint32(&bufp);
         bufe= bufp+l;
-        if(bufp<bufe) oo__bbx1= pbf_sint32(&bufp);
-        if(bufp<bufe) oo__bby1= pbf_sint32(&bufp);
-        if(bufp<bufe) oo__bbx2= pbf_sint32(&bufp);
+        if(bufp<bufe) bbx1= pbf_sint32(&bufp);
+        if(bufp<bufe) bby1= pbf_sint32(&bufp);
+        if(bufp<bufe) bbx2= pbf_sint32(&bufp);
         if(bufp<bufe) {
-          oo__bby2= pbf_sint32(&bufp);
-          oo__bbvalid= true;
+          bby2= pbf_sint32(&bufp);
+          oo__mergebbox(bbx1,bby1,bbx2,bby2);
           }
         bufp= bufe;
     continue;
@@ -8116,14 +8143,13 @@ return;
         bufp++;
     continue;
         }  // "<osm"
-      else if(c1=='b' && c2=='o' && c3=='u'  && oo__ifp==oo__if) {
-          // bounds AND first input file
+      else if(c1=='b' && c2=='o' && c3=='u') {  // bounds
         // bounds may be supplied in one of these formats:
         // <bounds minlat="53.01104" minlon="8.481593"
         //   maxlat="53.61092" maxlon="8.990601"/>
         // <bound box="49.10868,6.35017,49.64072,7.40979"
         //   origin="http://www.openstreetmap.org/api/0.6"/>
-        uint32_t bboxcomplete;  // flags for oo__bbx1 .. oo__bby2
+        uint32_t bboxcomplete;  // flags for bbx1 .. bby2
         int l;
         char c;
 
@@ -8152,29 +8178,29 @@ return;
               (l= strzlcmp(sp,"minlat=\'"))>0 ||
               ((isdig(c) || c=='-' || c=='.') && (bboxcomplete&2)==0)) {
             sp+= l;
-            oo__bby1= oo__strtodeg(sp);
-            if(oo__bby1!=oo__nildeg) bboxcomplete|= 2;
+            bby1= oo__strtodeg(sp);
+            if(bby1!=oo__nildeg) bboxcomplete|= 2;
             }
           else if((l= strzlcmp(sp,"minlon=\""))>0 ||
               (l= strzlcmp(sp,"minlon=\'"))>0 ||
               ((isdig(c) || c=='-' || c=='.') && (bboxcomplete&1)==0)) {
             sp+= l;
-            oo__bbx1= oo__strtodeg(sp);
-            if(oo__bbx1!=oo__nildeg) bboxcomplete|= 1;
+            bbx1= oo__strtodeg(sp);
+            if(bbx1!=oo__nildeg) bboxcomplete|= 1;
             }
           else if((l= strzlcmp(sp,"maxlat=\""))>0 ||
               (l= strzlcmp(sp,"maxlat=\'"))>0 ||
               ((isdig(c) || c=='-' || c=='.') && (bboxcomplete&8)==0)) {
             sp+= l;
-            oo__bby2= oo__strtodeg(sp);
-            if(oo__bby2!=oo__nildeg) bboxcomplete|= 8;
+            bby2= oo__strtodeg(sp);
+            if(bby2!=oo__nildeg) bboxcomplete|= 8;
             }
           else if((l= strzlcmp(sp,"maxlon=\""))>0 ||
               (l= strzlcmp(sp,"maxlon=\'"))>0 ||
               ((isdig(c) || c=='-' || c=='.') && (bboxcomplete&4)==0)) {
             sp+= l;
-            oo__bbx2= oo__strtodeg(sp);
-            if(oo__bbx2!=oo__nildeg) bboxcomplete|= 4;
+            bbx2= oo__strtodeg(sp);
+            if(bbx2!=oo__nildeg) bboxcomplete|= 4;
             }
           for(;;) {  // find next blank or comma
             c= *sp;
@@ -8183,7 +8209,8 @@ return;
             sp++;
             }
           }  // end   for every word in 'bounds'
-        oo__bbvalid= bboxcomplete==15;
+        if(bboxcomplete==15)
+          oo__mergebbox(bbx1,bby1,bbx2,bby2);
         bufp++;
     continue;
         }  // bounds
@@ -8195,11 +8222,9 @@ return;
     }  // end   osm xml
   else if(oo__ifp->format==-1) {  // pbf
     //pb_input();
-    if(pb_type==8 && oo__ifp==oo__if) {
-        // pbf header AND first input file
-      oo__bbx1= pb_bbx1; oo__bby1= pb_bby1;
-      oo__bbx2= pb_bbx2; oo__bby2= pb_bby2;
-      oo__bbvalid= pb_bbvalid;
+    if(pb_type==8) {  // pbf header
+      if(pb_bbvalid)
+        oo__mergebbox(pb_bbx1,pb_bby1,pb_bbx2,pb_bby2);
       if(pb_filetimestamp!=0)
         oo__timestamp= pb_filetimestamp;
       }  // end   pbf header
@@ -8336,6 +8361,10 @@ static inline int oo__getformat() {
     if(oo__ifp->ri!=NULL && oo__ifp->format==-9) {
         // format not yet determined
       read_switch(oo__ifp->ri);
+      if(read_bufp[0]==0xef && read_bufp[1]==0xbb &&
+          read_bufp[2]==0xbf && read_bufp[3]=='<')
+          // UTF-8 BOM detected
+        read_bufp+= 3;  // jump over BOM
       if(read_bufp>=read_bufe) {  // file empty
         PERRv("file empty: %.80s",oo__ifp->filename)
 return 2;
