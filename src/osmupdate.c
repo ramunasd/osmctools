@@ -1,6 +1,10 @@
-// osmupdate 2012-09-22 00:40
-#define VERSION "0.3A"
-// (c) 2011 Markus Weber, Nuernberg
+// osmupdate 2013-04-10 09:00
+#define VERSION "0.3F"
+//
+// compile this file:
+// gcc osmupdate.c -o osmupdate
+//
+// (c) 2011..2013 Markus Weber, Nuernberg
 //
 // This program is free software; you can redistribute it and/or
 // modify it under the terms of the GNU Affero General Public License
@@ -98,10 +102,14 @@ const char* helptext=
 "--minute\n"
 "--hour\n"
 "--day\n"
+"--sporadic\n"
 "        By default, osmupdate uses a combination of minutely, hourly\n"
 "        and daily changefiles. If you want to limit these changefile\n"
 "        categories, use one or two of these options and choose that\n"
 "        category/ies you want to be used.\n"
+"        The option --sporadic allows to process changefile sources\n"
+"        which do not have the usual \"minute\", \"hour\" and \"day\"\n"
+"        subdirectories.\n"
 "\n"
 "--max-merge=COUNT\n"
 "        The subprogram osmconvert is able to merge more than two\n"
@@ -124,17 +132,21 @@ const char* helptext=
 "        downloaded file. This is strongly recommended if you are\n"
 "        going to assemble different changefiles which overlap in\n"
 "        time ranges. Your data traffic will be minimized.\n"
+"        Do not invoke this option if you are going to use different\n"
+"        change file sources (option --base-url). This would cause\n"
+"        severe data corruption.\n"
 "\n"
 "--compression-level=LEVEL\n"
 "        Define level for gzip compression. Values between 1 (low\n"
 "        compression, but fast) and 9 (high compression, but slow).\n"
 "\n"
-"--planet-url=PLANET_URL\n"
-"        To accelerate downloads you may specify an alternative\n"
-"        download location. Please enter its URL, or simply the word\n"
-"        \"mirror\" if you want to use gwdg's planet server.\n"
+"--base-url=BASE_URL\n"
+"        To accelerate downloads or to get regional file updates you\n"
+"        may specify an alternative download location. Please enter\n"
+"        its URL, or simply the word \"mirror\" if you want to use\n"
+"        gwdg's planet server.\n"
 "\n"
-"--planet-url-suffix=PLANET_URL_SUFFIX\n"
+"--base-url-suffix=BASE_URL_SUFFIX\n"
 "        To use old planet URLs, you may need to add the suffix\n"
 "        \"-replicate\" because it was custom to have this word in the\n"
 "        URL, right after the period identifier \"day\" etc.\n"
@@ -498,9 +510,9 @@ static int global_max_merge= 7;
   // maximum number of parallely processed changefiles
 static const char* global_gzip_parameters= "";
   // parameters for gzip compression
-static char global_planet_url[400]=
-  "http://planet.openstreetmap.org/replication/";
-static char global_planet_url_suffix[100]="";
+static char global_base_url[400]=
+  "http://planet.openstreetmap.org/replication";
+static char global_base_url_suffix[100]="";
   // for old replication URL, to get "day-replication" instead of "day"
 
 #define PERR(f) \
@@ -560,11 +572,11 @@ exit(1);
     PINFOv("Got shell command result:\n%s",result)
   }  // end   shell_command()
 
-typedef enum {cft_UNKNOWN,cft_MINUTELY,cft_HOURLY,cft_DAILY}
+typedef enum {cft_UNKNOWN,cft_MINUTELY,cft_HOURLY,cft_DAILY,cft_SPORADIC}
   changefile_type_t;
 #define CFTNAME(i) \
   (i==cft_MINUTELY? "minutely": i==cft_HOURLY? "hourly": \
-  i==cft_DAILY? "daily": "unknown")
+  i==cft_DAILY? "daily": i==cft_SPORADIC? "sporadic": "unknown")
 
 static int64_t get_file_timestamp(const char* file_name) {
   // get the timestamp of a specific file;
@@ -625,7 +637,7 @@ static int64_t get_newest_changefile_timestamp(
     changefile_type_t changefile_type,int32_t* file_sequence_number) {
   // get sequence number and timestamp of the newest changefile
   // of a specific changefile type;
-  // changefile_type: minutely, hourly or daily changefile;
+  // changefile_type: minutely, hourly, daily, sporadic changefile;
   // return: timestamp of the file (seconds from Jan 01 1970);
   //         ==0: no file timestamp available;
   // *file_sequence_number: sequence number of the newest changefile;
@@ -649,21 +661,23 @@ static int64_t get_newest_changefile_timestamp(
   command_p= command;
   stecpy(&command_p,command_e,
     "wget -q ");
-  stecpy(&command_p,command_e,global_planet_url);
+  stecpy(&command_p,command_e,global_base_url);
   switch(changefile_type) {  // changefile type
   case cft_MINUTELY:
-    stecpy(&command_p,command_e,"minute");
+    stecpy(&command_p,command_e,"/minute");
     break;
   case cft_HOURLY:
-    stecpy(&command_p,command_e,"hour");
+    stecpy(&command_p,command_e,"/hour");
     break;
   case cft_DAILY:
-    stecpy(&command_p,command_e,"day");
+    stecpy(&command_p,command_e,"/day");
+    break;
+  case cft_SPORADIC:
     break;
   default:  // invalid change file type
 return 0;
     }  // changefile type
-  stecpy(&command_p,command_e,global_planet_url_suffix);
+  stecpy(&command_p,command_e,global_base_url_suffix);
   stecpy(&command_p,command_e,"/state.txt");
   #if __WIN32__
     stecpy(&command_p,command_e," -O \"");
@@ -736,7 +750,7 @@ static int64_t get_changefile_timestamp(
   // is available in the Internet;
   // a timestamp file will not be downloaded if it
   // already exists locally as temporary file;
-  // changefile_type: minutely, hourly or daily changefile;
+  // changefile_type: minutely, hourly, daily, sporadic changefile;
   // file_sequence_number: sequence number of the file;
   // uses:
   // global_tempfile_name
@@ -757,7 +771,7 @@ static int64_t get_changefile_timestamp(
     sizeof(timestamp_cachefile_name[0])-20);
   *sp++= '.';
   *sp++= CFTNAME(changefile_type)[0];
-    // 'm', 'h', 'd' for minutely, hourly or daily timestamps
+    // 'm', 'h', 'd', 's': minutely, hourly, daily, sporadic timestamps
   sprintf(sp,"%09"PRIi32".txt",file_sequence_number);
     // add sequence number and file name extension
 
@@ -766,16 +780,18 @@ static int64_t get_changefile_timestamp(
       // timestamp has not been downloaded yet
     command_p= command;
     stecpy(&command_p,command_e,"wget -nv -c ");
-    stecpy(&command_p,command_e,global_planet_url);
+    stecpy(&command_p,command_e,global_base_url);
     if(changefile_type==cft_MINUTELY)
-      stecpy(&command_p,command_e,"minute");
+      stecpy(&command_p,command_e,"/minute");
     else if(changefile_type==cft_HOURLY)
-      stecpy(&command_p,command_e,"hour");
+      stecpy(&command_p,command_e,"/hour");
     else if(changefile_type==cft_DAILY)
-      stecpy(&command_p,command_e,"day");
+      stecpy(&command_p,command_e,"/day");
+    else if(changefile_type==cft_SPORADIC)
+      ;
     else  // invalid change file type
       return 0;
-    stecpy(&command_p,command_e,global_planet_url_suffix);
+    stecpy(&command_p,command_e,global_base_url_suffix);
     stecpy(&command_p,command_e,"/");
     /* assemble Sequence path */ {
       int l;
@@ -849,7 +865,7 @@ static void process_changefile(
   // until some files have been downloaded and then processed in a group;
   // a file will not be downloaded if it already exists locally as
   // temporary file;
-  // changefile_type: minutely, hourly or daily changefile;
+  // changefile_type: minutely, hourly, daily, sporadic changefile;
   // file_sequence_number: sequence number of the file;
   //                       ==0: process the remaining files which
   //                            are waiting in the cache; cleanup;
@@ -896,7 +912,8 @@ static void process_changefile(
       sizeof(cachefile_name[0])-20);
     *sp++= '.';
     *sp++= CFTNAME(changefile_type)[0];
-      // 'm', 'h', 'd' for minutely, hourly or daily changefiles
+      // 'm', 'h', 'd', 's': minutely, hourly, daily,
+      //                     sporadic changefiles
     sprintf(sp,"%09"PRIi32".osc.gz",file_sequence_number);
       // add sequence number and file name extension
 
@@ -908,21 +925,23 @@ static void process_changefile(
         CFTNAME(changefile_type),file_sequence_number)
     command_p= command;
     stecpy(&command_p,command_e,"wget -nv -c ");
-    stecpy(&command_p,command_e,global_planet_url);
+    stecpy(&command_p,command_e,global_base_url);
     switch(changefile_type) {  // changefile type
     case cft_MINUTELY:
-      stecpy(&command_p,command_e,"minute");
+      stecpy(&command_p,command_e,"/minute");
       break;
     case cft_HOURLY:
-      stecpy(&command_p,command_e,"hour");
+      stecpy(&command_p,command_e,"/hour");
       break;
     case cft_DAILY:
-      stecpy(&command_p,command_e,"day");
+      stecpy(&command_p,command_e,"/day");
+      break;
+    case cft_SPORADIC:
       break;
     default:  // invalid change file type
       return;
       }  // changefile type
-    stecpy(&command_p,command_e,global_planet_url_suffix);
+    stecpy(&command_p,command_e,global_base_url_suffix);
     stecpy(&command_p,command_e,"/");
 
     /* process sequence number */ {
@@ -1032,18 +1051,19 @@ int main(int argc,const char** argv) {
   int64_t max_update_range;  // maximum range for cumulating changefiles
     // in order to update an OSM file; unit: seconds;
   char tempfile_directory[400];  // directory for temporary files
-  bool process_minutely,process_hourly,process_daily;
+  bool process_minutely,process_hourly,process_daily,process_sporadic;
     // if one of these variables is true, then only the chosen categories
-    // shall be processed, minutely, hourly or daily;
+    // shall be processed;
   bool no_minutely,no_hourly,no_daily;
     // the category shall not be processed;
 
   // regular variables
-  int64_t minutely_timestamp,hourly_timestamp,daily_timestamp;
+  int64_t minutely_timestamp,hourly_timestamp,daily_timestamp,
+    sporadic_timestamp;
     // timestamps for changefiles which are available in the Internet;
     // unit: seconds after Jan 01 1970;
   int32_t minutely_sequence_number,hourly_sequence_number,
-    daily_sequence_number;
+    daily_sequence_number,sporadic_sequence_number;
   int64_t timestamp;
   int64_t next_timestamp;
 
@@ -1058,7 +1078,6 @@ int main(int argc,const char** argv) {
     sigaction(SIGPIPE,&siga,NULL);
     }
   #endif
-  //atexit(restore_timezone); ,,,
 
   // initializations
   main_return_value= 0;  // (default)
@@ -1077,7 +1096,8 @@ int main(int argc,const char** argv) {
   new_file_is_changefile= false;
   new_file_is_gz= false;
   max_update_range= 250*86400;
-  process_minutely= process_hourly= process_daily= false;
+  process_minutely= process_hourly= process_daily= process_sporadic=
+    false;
   no_minutely= no_hourly= no_daily= false;
   if(file_exists(global_osmconvert_program))
       // must be Linux (no ".exe" at the end) AND
@@ -1182,30 +1202,42 @@ return 0;
       process_daily= true;
   continue;  // take next parameter
       }
-    if(strzcmp(a,"--planet-url=")==0 && a[13]!=0) {
-        // change planet url
+    if(strcmp(a,"--sporadic")==0) {
+        // process sporadic data;
+      process_sporadic= true;
+  continue;  // take next parameter
+      }
+    if((strzcmp(a,"--base-url=")==0 && a[11]!=0) ||
+        (strzcmp(a,"--planet-url=")==0 && a[13]!=0)) {
+        // change base url
+        // the second option keyword is deprecated but still supported
       const char* ap;
       char* sp;
 
-      ap= a+13;
+      ap= a+11;
+      if(a[2]=='p') ap+= 2;
       if(strcmp(ap,"mirror")==0)
-        strcpy(global_planet_url,"ftp://ftp5.gwdg.de/pub/misc/"
-          "openstreetmap/planet.openstreetmap.org/replication/");
+        strcpy(global_base_url,"ftp://ftp5.gwdg.de/pub/misc/"
+          "openstreetmap/planet.openstreetmap.org/replication");
       else if(strstr(ap,"://")!=NULL)
-        strmcpy(global_planet_url,ap,sizeof(global_planet_url)-1);
+        strmcpy(global_base_url,ap,sizeof(global_base_url)-1);
       else {
-        strcpy(global_planet_url,"http://");
-        strmcpy(global_planet_url+7,ap,sizeof(global_planet_url)-8);
+        strcpy(global_base_url,"http://");
+        strmcpy(global_base_url+7,ap,sizeof(global_base_url)-8);
         }
-      sp= strchr(global_planet_url,0);
-      if(sp>global_planet_url && sp[-1]!='/') {
-        *sp++= '/'; sp= 0; }
+      sp= strchr(global_base_url,0);
+      if(sp>global_base_url && sp[-1]=='/')
+        sp[-1]= 0;
+  continue;  // take next parameter
+      }
+    if(strzcmp(a,"--base-url-suffix=")==0 && a[20]!=0) {
+        // change base url suffix
+      strMcpy(global_base_url_suffix,a+18);
   continue;  // take next parameter
       }
     if(strzcmp(a,"--planet-url-suffix=")==0 && a[20]!=0) {
-        // change planet url suffix
-
-      strMcpy(global_planet_url_suffix,a+20);
+        // change base url suffix (this option keyword is deprecated)
+      strMcpy(global_base_url_suffix,a+20);
   continue;  // take next parameter
       }
     if(a[0]=='-') {
@@ -1325,17 +1357,38 @@ return 1;
 return 1;
     }
 
+  // initialize sequence numbers and timestamps
+  minutely_sequence_number= hourly_sequence_number=
+    daily_sequence_number= sporadic_sequence_number= 0;
+  minutely_timestamp= hourly_timestamp=
+    daily_timestamp= sporadic_timestamp= 0;
+
   // care about user defined processing categories
-  if(process_minutely || process_hourly || process_daily) {
+  if(process_minutely || process_hourly ||
+      process_daily || process_sporadic) {
+      // user wants specific type(s) of chancefiles to be processed
     if(!process_minutely) no_minutely= true;
     if(!process_hourly) no_hourly= true;
     if(!process_daily) no_daily= true;
     }
+  else {
+    // try to get sporadic timestamp
+    sporadic_timestamp= get_newest_changefile_timestamp(
+      cft_SPORADIC,&sporadic_sequence_number);
+    if(sporadic_timestamp!=0) {
+        // there is a timestamp at the highest directory level,
+        // this must be a so-called sporadic timestamp
+      if(loglevel>0) {
+        PINFO("Found status information in base URL root.")
+        PINFO("Ignoring subdirectories \"minute\", \"hour\", \"day\".")
+        }
+      process_sporadic= true;  // let's take it
+      no_minutely= no_hourly= no_daily= true;
+      }
+    }
 
-  // get last timestamp for each, minutely, hourly and daily diff files
-  minutely_sequence_number= hourly_sequence_number=
-    daily_sequence_number= 0;
-  minutely_timestamp= hourly_timestamp= daily_timestamp= 0;
+  // get last timestamp for each, minutely, hourly, daily,
+  // and sporadic diff files
   if(!no_minutely) {
     minutely_timestamp= get_newest_changefile_timestamp(
       cft_MINUTELY,&minutely_sequence_number);
@@ -1357,6 +1410,15 @@ return 1;
       cft_DAILY,&daily_sequence_number);
     if(daily_timestamp==0) {
       PERR("Could not get the newest daily timestamp from the Internet.")
+  return 1;
+      }
+    }
+  if(process_sporadic && sporadic_timestamp==0) {
+    sporadic_timestamp= get_newest_changefile_timestamp(
+      cft_SPORADIC,&sporadic_sequence_number);
+    if(sporadic_timestamp==0) {
+      PERR("Could not get the newest sporadic timestamp "
+        "from the Internet.")
   return 1;
       }
     }
@@ -1387,6 +1449,7 @@ return 1;
   if(timestamp<minutely_timestamp) timestamp= minutely_timestamp;
   if(timestamp<hourly_timestamp) timestamp= hourly_timestamp;
   if(timestamp<daily_timestamp) timestamp= daily_timestamp;
+  if(timestamp<sporadic_timestamp) timestamp= sporadic_timestamp;
 
   // get and process minutely diff files from last minutely timestamp
   // backward; stop just before latest hourly timestamp or OSM
@@ -1431,6 +1494,20 @@ return 1;
       }
     }
 
+  // get and process sporadic diff files from last sporadic timestamp
+  // backward; stop just before OSM file timestamp has been reached;
+  if(sporadic_timestamp!=0) {
+    next_timestamp= timestamp;
+    while(next_timestamp>old_timestamp) {
+      timestamp= next_timestamp;
+      process_changefile(
+        cft_SPORADIC,sporadic_sequence_number,timestamp);
+      sporadic_sequence_number--;
+      next_timestamp= get_changefile_timestamp(
+        cft_SPORADIC,sporadic_sequence_number);
+      }
+    }
+
   // process remaining files which may still wait in the cache;
   process_changefile(0,0,0);
 
@@ -1440,6 +1517,8 @@ return 1;
     char* command_e= command+sizeof(command);
     char result[1000];
 
+    if(loglevel>0)
+      PINFO("Creating output file.")
     strcpy(stpmcpy(master_cachefile_name,global_tempfile_name,
       sizeof(master_cachefile_name)-5),".8");
     if(!file_exists(master_cachefile_name)) {

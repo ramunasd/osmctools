@@ -1,5 +1,5 @@
-// osmfilter 2012-12-16 11:00
-#define VERSION "1.2S"
+// osmfilter 2012-12-30 14:20
+#define VERSION "1.2S+"
 // (c) 2011, 2012 Markus Weber, Nuernberg
 //
 // compile this file:
