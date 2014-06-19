@@ -1,10 +1,10 @@
-// osmconvert 2013-06-30 10:30
-#define VERSION "0.7T"
+// osmconvert 2014-06-19 13:40
+#define VERSION "0.7W"
 //
 // compile this file:
 // gcc osmconvert.c -lz -O3 -o osmconvert
 //
-// (c) 2011..2013 Markus Weber, Nuernberg
+// (c) 2011..2014 Markus Weber, Nuernberg
 // Richard Russo contributed the initiative to --add-bbox-tags option
 //
 // This program is free software; you can redistribute it and/or
@@ -3449,8 +3449,13 @@ return 0;
               pb_hisver= 0;
             else if((hiscomplete&24)!=24)  // no user information
               pb_hisuid= 0;
+            #if 1  // 2014-06-16
+            if((complete & 1)==1) {  // minimum contents available
+                // (at least id)
+            #else
             if((complete & 17)==17) {  // minimum contents available
                 // (at least id and node refs)
+            #endif
               waycomplete= true;
               goto mainloop;
               }
@@ -3716,7 +3721,7 @@ return 0;
             l= pbf_uint32(&bp);
             bp+= l;  // (ignore this element)
             break;
-          case 0x80:  // 0x02 V 32, osmosis_replication_timestamp ,,,
+          case 0x80:  // 0x02 V 32, osmosis_replication_timestamp
             if(bp[1]!=0x02) goto h_unknown;
             bp+= 2;
             pb_filetimestamp= pbf_uint64(&bp);
@@ -5126,7 +5131,7 @@ static void pw_header(bool bboxvalid,
   pw__obj_add_id2(0x8a01);  // S 17 'source'
   pw__obj_add_str("http://www.openstreetmap.org/api/0.6");
   if(timestamp!=0) {  // file timestamp given
-    pw__obj_add_id2(0x8002);  // V 32 osmosis_replication_timestamp ,,,
+    pw__obj_add_id2(0x8002);  // V 32 osmosis_replication_timestamp
     pw__obj_add_uint64(timestamp);
     }  // file timestamp given
   /* write 'raw_size' into hierarchy object's header */ {
@@ -6933,7 +6938,7 @@ static void str_read(byte** pp,char** s1p,char** s2p) {
   char* p;
   int len1,len2;
   int ref;
-  bool donotstore;  // string has 'do not store flag'  2012-10-01 ,,,
+  bool donotstore;  // string has 'do not store flag'  2012-10-01
 
   p= (char*)*pp;
   if(*p==0) {  // string (pair) given directly
@@ -7842,7 +7847,7 @@ static inline void wo_addbboxtags(bool fornode,
       else
         wo_wayrel_keyval("bBoxArea",s);
       }  // add bbox area tags
-    if(global_addbboxweight) {  // add bbox weight tags ,,,,,
+    if(global_addbboxweight) {  // add bbox weight tags
       write_createsint64(msbit(area),s);
       if(fornode)
         wo_node_keyval("bBoxWeight",s);
@@ -8372,7 +8377,7 @@ static void oo__findbb() {
   // oo__bbvalid: following border box information is valid;
   // oo__bbx1 .. oo__bby2: border box coordinates;
   // read_bufp will not be changed;
-  byte* bufp,*bufe;
+  byte* bufp,*bufe,*bufe1;
   int32_t bbx1= 0,bby1= 0,bbx2= 0,bby2= 0;
     // bbox coordinates (base 10^-7)
 
@@ -8395,23 +8400,23 @@ return;
       if(b==0xdc) {  // timestamp
         bufp++;
         l= pbf_uint32(&bufp);
-        bufe= bufp+l;
-        if(bufp<bufe) oo__timestamp= pbf_sint64(&bufp);
-        bufp= bufe;
+        bufe1= bufp+l; if(bufe1>=bufe) bufe1= bufe;
+        if(bufp<bufe1) oo__timestamp= pbf_sint64(&bufp);
+        bufp= bufe1;
     continue;
         }  // timestamp
       if(b==0xdb) {  // border box
         bufp++;
         l= pbf_uint32(&bufp);
-        bufe= bufp+l;
-        if(bufp<bufe) bbx1= pbf_sint32(&bufp);
-        if(bufp<bufe) bby1= pbf_sint32(&bufp);
-        if(bufp<bufe) bbx2= pbf_sint32(&bufp);
-        if(bufp<bufe) {
+        bufe1= bufp+l; if(bufe1>=bufe) bufe1= bufe;
+        if(bufp<bufe1) bbx1= pbf_sint32(&bufp);
+        if(bufp<bufe1) bby1= pbf_sint32(&bufp);
+        if(bufp<bufe1) bbx2= pbf_sint32(&bufp);
+        if(bufp<bufe1) {
           bby2= pbf_sint32(&bufp);
           oo__mergebbox(bbx1,bby1,bbx2,bby2);
           }
-        bufp= bufe;
+        bufp= bufe1;
     continue;
         }  // border box
       bufp++;
@@ -10456,7 +10461,7 @@ return 26;
                 refidp++;
                 }  // end   for every referenced node
               if(global_add)
-                wo_addbboxtags(false,x_min,y_min,x_max,y_max);  //,,,,,
+                wo_addbboxtags(false,x_min,y_min,x_max,y_max);
               keyp= key; valp= val;
               while(keyp<keye)  // for all key/val pairs of this object
                 wo_wayrel_keyval(*keyp++,*valp++);
@@ -10632,7 +10637,7 @@ return 26;
                 }
               refidp++; reftypep++; refrolep++;
               }  // end   for every referenced object
-            if(global_add) {  //,,,,,
+            if(global_add) {
               posi_get(id+global_otypeoffset20);  // get coordinates
               if(posi_xy!=NULL && posi_xy[0]!=posi_nil)
                   // stored coordinates are valid
@@ -11817,7 +11822,8 @@ return 0;  // end the program, because without having input files
     // try to determine the output format by evaluating
     // the file name extension
     if(strycmp(outputfilename,".o5m")==0) global_outo5m= true;
-    else if(strycmp(outputfilename,".o5c")==0) global_outo5c= true;
+    else if(strycmp(outputfilename,".o5c")==0)
+      global_outo5m= global_outo5c= true;
     else if(strycmp(outputfilename,".osm")==0) global_outosm= true;
     else if(strycmp(outputfilename,".osc")==0) global_outosc= true;
     else if(strycmp(outputfilename,".osh")==0) global_outosh= true;
