@@ -1,9 +1,10 @@
-// osmfilter 2012-12-30 14:20
-#define VERSION "1.2S+"
-// (c) 2011, 2012 Markus Weber, Nuernberg
+// osmfilter 2014-06-22 14:00
+#define VERSION "1.2T"
 //
 // compile this file:
 // gcc osmfilter.c -O3 -o osmfilter
+//
+// (c) 2011..2014 Markus Weber, Nuernberg
 //
 // This program is free software; you can redistribute it and/or
 // modify it under the terms of the GNU Affero General Public License
@@ -6193,7 +6194,8 @@ return 2;
     // try to determine the output format by evaluating
     // the file name extension
     if(strycmp(outputfilename,".o5m")==0) global_outo5m= true;
-    else if(strycmp(outputfilename,".o5c")==0) global_outo5c= true;
+    else if(strycmp(outputfilename,".o5c")==0)
+      global_outo5m= global_outo5c= true;
     else if(strycmp(outputfilename,".osm")==0) global_outosm= true;
     else if(strycmp(outputfilename,".osc")==0) global_outosc= true;
     else if(strycmp(outputfilename,".osh")==0) global_outosh= true;
