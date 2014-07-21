@@ -2,6 +2,8 @@ AC_INIT([osmctools], [1.0], [markus.weber@gmx.com])
 
 AM_INIT_AUTOMAKE([foreign -Wall -Werror])
 
+CFLAGS=${CFLAGS:="-march=native -O3"}
+
 AC_PROG_CC
 
 AC_CHECK_LIB(z, gzopen, [enable_osmconvert=yes], [enable_osmconvert=no])
