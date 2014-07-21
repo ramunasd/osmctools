@@ -5,3 +5,16 @@ configure
 depcomp
 install-sh
 missing
+Makefile
+config.log
+config.status
+include/config.h
+include/stamp-h1
+src/.deps/
+src/Makefile
+src/osmconvert
+src/osmconvert.o
+src/osmfilter
+src/osmfilter.o
+src/osmupdate
+src/osmupdate.o
