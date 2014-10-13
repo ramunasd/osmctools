@@ -1,5 +1,5 @@
-// osmfilter 2014-06-22 14:00
-#define VERSION "1.2T"
+// osmfilter 2014-10-13 20:30
+#define VERSION "1.3"
 //
 // compile this file:
 // gcc osmfilter.c -O3 -o osmfilter
@@ -61,7 +61,6 @@ const char* shorthelptext=
 "--out-osh                 write output in .osh format (visible-tags)\n"
 "--out-o5m                 write output in .o5m format (fast binary)\n"
 "--out-o5c                 write output in .o5c format (bin. Changef.)\n"
-"--out-pbf                 write output in .pbf format (bin. standard)\n"
 "-o=<outfile>              reroute standard output to a file\n"
 "-t=<tempfile>             define tempfile prefix\n"
 "--parameter-file=<file>   param. in file, separated by empty lines\n"
@@ -301,15 +300,15 @@ const char* helptext=
 "Tuning\n"
 "\n"
 "To speed-up the process, the program uses some main memory for a\n"
-"hash table. By default, it uses 480 MB for storing a flag for every\n"
-"possible node, 90 for the way flags, and 30 relation flags.\n"
-"Every byte holds the flags for 8 ID numbers, i.e., in 480 MB the\n"
-"program can store 3840 million flags. As there are less than 1900\n"
-"million IDs for nodes at present (July 2012), 240 MB would suffice.\n"
-"So, for example, you can decrease the hash sizes to e.g. 240, 30 and\n"
+"hash table. By default, it uses 900 MB for storing a flag for every\n"
+"possible node, 90 for the way flags, and 10 relation flags.\n"
+"Every byte holds the flags for 8 ID numbers, i.e., in 900 MB the\n"
+"program can store 7200 million flags. As there are less than 3200\n"
+"million IDs for nodes at present (Oct 2014), 400 MB would suffice.\n"
+"So, for example, you can decrease the hash sizes to e.g. 400, 50 and\n"
 "2 MB (for relations, 2 flags are needed each) using this option:\n"
 "\n"
-"  --hash-memory=240-30-2\n"
+"  --hash-memory=400-50-2\n"
 "\n"
 "But keep in mind that the OSM database is continuously expanding. For\n"
 "this reason the program-own default value is higher than shown in the\n"
@@ -318,10 +317,10 @@ const char* helptext=
 "amount of memory as a sum, and the program will divide it by itself.\n"
 "For example:\n"
 "\n"
-"  --hash-memory=1000\n"
+"  --hash-memory=1500\n"
 "\n"
-"These 1000 MiB will be split in three parts: 800 for nodes, 150 for\n"
-"ways, and 50 for relations.\n"
+"These 1500 MB will be split in three parts: 1350 for nodes, 135 for\n"
+"ways, and 15 for relations.\n"
 "\n"
 "Because we are taking hashes, it is not necessary to provide all the\n"
 "suggested memory; the program will operate with less hash memory too.\n"
@@ -1936,7 +1935,6 @@ static inline bool fil__cmp(const char* s1,const char* s2) {
   int op,wc;  // operator, wildcard flags
   int diff;  // (for numeric comparison)
   unsigned char s1v,s2v;  // (for numeric comparison)
-  bool ret;
 
   op= *s2++;
   if(op==2) { // '='
@@ -1955,7 +1953,6 @@ static inline bool fil__cmp(const char* s1,const char* s2) {
     if(wc==1) {  // wildcard at start
       const char* s11,*s22;
 
-      ret= false;  // (default)
       while(*s1!=0) {  // for all start positions in s1[]
         s11= s1; s22= s2;
         while(*s11==*s22 && *s11!=0) { s11++; s22++; }
@@ -1968,7 +1965,6 @@ static inline bool fil__cmp(const char* s1,const char* s2) {
     /* wildcards at start and end */ {
       const char* s11,*s22;
 
-      ret= false;  // (default)
       while(*s1!=0) {  // for all start positions in s1[]
         s11= s1; s22= s2;
         while(*s11==*s22 && *s11!=0) { s11++; s22++; }
@@ -1987,7 +1983,6 @@ static inline bool fil__cmp(const char* s1,const char* s2) {
     if(wc==1) {  // wildcard at start
       const char* s11,*s22;
 
-      ret= false;  // (default)
       while(*s1!=0) {  // for all start positions in s1[]
         s11= s1; s22= s2;
         while(*s11==*s22 && *s11!=0) { s11++; s22++; }
@@ -2000,7 +1995,6 @@ static inline bool fil__cmp(const char* s1,const char* s2) {
     /* wildcards at start and end */ {
       const char* s11,*s22;
 
-      ret= false;  // (default)
       while(*s1!=0) {  // for all start positions in s1[]
         s11= s1; s22= s2;
         while(*s11==*s22 && *s11!=0) { s11++; s22++; }
@@ -3747,7 +3741,7 @@ static void str_read(byte** pp,char** s1p,char** s2p) {
   char* p;
   int len1,len2;
   int ref;
-  bool donotstore;  // string has 'do not store flag'  2012-10-01 ,,,,,
+  bool donotstore;  // string has 'do not store flag'  2012-10-01
 
   p= (char*)*pp;
   if(*p==0) {  // string (pair) given directly
@@ -6036,7 +6030,7 @@ return 0;
       }
     if(strcmp(a,"--out-o5c")==0 ||
         strcmp(a,"-5c")==0) {
-        // user wants output in o5m format
+        // user wants output in o5c format
       global_outo5m= global_outo5c= true;
   continue;  // take next parameter
       }
@@ -6212,12 +6206,12 @@ return 3;
   if(global_recursive) {
     int r;
 
-    if(h_n==0) h_n= 600;  // use standard value if not set otherwise
+    if(h_n==0) h_n= 1000;  // use standard value if not set otherwise
     if(h_w==0 && h_r==0) {
         // user chose simple form for hash memory value
       // take the one given value as reference and determine the 
-      // three values using these factors: 80%, 15%, 5%
-      h_w= h_n/5; h_r= h_n/20;
+      // three values using these factors: 90%, 9%, 1%
+      h_w= h_n/10; h_r= h_n/100;
       h_n-= h_w; h_w-= h_r; }
     r= hash_ini(h_n,h_w,h_r);  // initialize hash table
     if(r==1)

@@ -1,5 +1,5 @@
-// osmconvert 2014-06-19 13:40
-#define VERSION "0.7W"
+// osmconvert 2014-10-13 20:10
+#define VERSION "0.8"
 //
 // compile this file:
 // gcc osmconvert.c -lz -O3 -o osmconvert
@@ -349,15 +349,15 @@ const char* helptext=
 "Tuning\n"
 "\n"
 "To speed-up the process, the program uses some main memory for a\n"
-"hash table. By default, it uses 480 MB for storing a flag for every\n"
-"possible node, 90 for the way flags, and 30 relation flags.\n"
-"Every byte holds the flags for 8 ID numbers, i.e., in 480 MB the\n"
-"program can store 3840 million flags. As there are less than 1900\n"
-"million IDs for nodes at present (July 2012), 240 MB would suffice.\n"
-"So, for example, you can decrease the hash sizes to e.g. 240, 30 and\n"
+"hash table. By default, it uses 900 MB for storing a flag for every\n"
+"possible node, 90 for the way flags, and 10 relation flags.\n"
+"Every byte holds the flags for 8 ID numbers, i.e., in 900 MB the\n"
+"program can store 7200 million flags. As there are less than 3200\n"
+"million IDs for nodes at present (Oct 2014), 400 MB would suffice.\n"
+"So, for example, you can decrease the hash sizes to e.g. 400, 50 and\n"
 "2 MB using this option:\n"
 "\n"
-"  --hash-memory=240-30-2\n"
+"  --hash-memory=400-50-2\n"
 "\n"
 "But keep in mind that the OSM database is continuously expanding. For\n"
 "this reason the program-own default value is higher than shown in the\n"
@@ -366,10 +366,10 @@ const char* helptext=
 "amount of memory as a sum, and the program will divide it by itself.\n"
 "For example:\n"
 "\n"
-"  --hash-memory=1000\n"
+"  --hash-memory=1500\n"
 "\n"
-"These 1000 MiB will be split in three parts: 800 for nodes, 150 for\n"
-"ways, and 50 for relations.\n"
+"These 1500 MB will be split in three parts: 1350 for nodes, 135 for\n"
+"ways, and 15 for relations.\n"
 "\n"
 "Because we are taking hashes, it is not necessary to provide all the\n"
 "suggested memory; the program will operate with less hash memory too.\n"
@@ -11840,12 +11840,12 @@ return 3;
         "-b=, -B=, --drop-brokenrefs must not be combined with --diff");
 return 6;
       }
-    if(h_n==0) h_n= 600;  // use standard value if not set otherwise
+    if(h_n==0) h_n= 1000;  // use standard value if not set otherwise
     if(h_w==0 && h_r==0) {
         // user chose simple form for hash memory value
       // take the one given value as reference and determine the 
-      // three values using these factors: 80%, 15%, 5%
-      h_w= h_n/5; h_r= h_n/20;
+      // three values using these factors: 90%, 9%, 1%
+      h_w= h_n/10; h_r= h_n/100;
       h_n-= h_w; h_w-= h_r; }
     r= hash_ini(h_n,h_w,h_r);  // initialize hash table
     if(r==1)
