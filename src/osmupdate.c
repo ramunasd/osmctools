@@ -1,10 +1,10 @@
-// osmupdate 2013-04-10 09:00
-#define VERSION "0.3F"
+// osmupdate 2014-10-13 21:00
+#define VERSION "0.3H"
 //
 // compile this file:
 // gcc osmupdate.c -o osmupdate
 //
-// (c) 2011..2013 Markus Weber, Nuernberg
+// (c) 2011..2014 Markus Weber, Nuernberg
 //
 // This program is free software; you can redistribute it and/or
 // modify it under the terms of the GNU Affero General Public License
@@ -561,13 +561,16 @@ exit(1);
   maxlen= 1000-1;
   while(maxlen>0) {
     r= read(fileno(fp),result_p,maxlen);
-    if(r<=0)  // end of data
+    if(r==0)  // end of data
   break;
+    if(r<0)
+exit(errno);  // (thanks to Ben Konrath)
     result_p+= r;
     maxlen-= r;
     }
   *result_p= 0;
-  pclose(fp);
+  if(pclose(fp)==-1)
+exit(errno);  // (thanks to Ben Konrath)
   if(loglevel>=2)
     PINFOv("Got shell command result:\n%s",result)
   }  // end   shell_command()
