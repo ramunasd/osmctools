@@ -1,5 +1,5 @@
-// osmconvert 2014-10-13 20:10
-#define VERSION "0.8"
+// osmconvert 2014-10-15 12:20
+#define VERSION "0.8A"
 //
 // compile this file:
 // gcc osmconvert.c -lz -O3 -o osmconvert
@@ -2571,7 +2571,7 @@ static inline void write_sfix7(int32_t v) {
     { *s1++= '-'; v= -v; }
   s2= s1;
   i= 7;
-  while((v%10)==0 && i>0)  // trailing zeroes
+  while((v%10)==0 && i>1)  // trailing zeroes
     { v/= 10;  i--; }
   while(--i>=0)
     { *s2++= (v%10)+'0'; v/= 10; }
