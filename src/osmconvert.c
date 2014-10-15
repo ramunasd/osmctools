@@ -2536,7 +2536,7 @@ static inline void write_sint64(int64_t v) {
 
 static inline char* write_createsfix7o(int32_t v,char* s) {
   // convert a signed 7 decimals fixpoint value into a string;
-  // keep trailing zeroes;
+  // keep trailing zeros;
   // v: fixpoint value
   // return: pointer do string terminator;
   // s[12]: destination string;
@@ -2571,7 +2571,7 @@ static inline void write_sfix7(int32_t v) {
     { *s1++= '-'; v= -v; }
   s2= s1;
   i= 7;
-  while((v%10)==0 && i>1)  // trailing zeroes
+  while((v%10)==0 && i>1)  // trailing zeros
     { v/= 10;  i--; }
   while(--i>=0)
     { *s2++= (v%10)+'0'; v/= 10; }
@@ -2587,7 +2587,7 @@ static inline void write_sfix7(int32_t v) {
 
 static inline void write_sfix7o(int32_t v) {
   // write a signed 7 decimals fixpoint value to standard output;
-  // keep trailing zeroes;
+  // keep trailing zeros;
   char s[20],*s1,*s2,c;
   int i;
 
@@ -2610,7 +2610,7 @@ static inline void write_sfix7o(int32_t v) {
 
 static inline void write_sfix6o(int32_t v) {
   // write a signed 6 decimals fixpoint value to standard output;
-  // keep trailing zeroes;
+  // keep trailing zeros;
   char s[20],*s1,*s2,c;
   int i;
 
