@@ -1,5 +1,5 @@
-// osmconvert 2014-10-15 12:20
-#define VERSION "0.8A"
+// osmconvert 2014-11-15 14:50
+#define VERSION "0.8.2"
 //
 // compile this file:
 // gcc osmconvert.c -lz -O3 -o osmconvert
@@ -45,6 +45,7 @@ const char* shorthelptext=
 "--diff                    calculate differences between two files\n"
 "--diff-contents           same as before, but compare whole contents\n"
 "--subtract                subtract objects given by following files\n"
+"--pbf-granularity=<val>   lon/lat granularity of .pbf input file\n"
 "--emulate-osmosis         emulate Osmosis XML output format\n"
 "--emulate-pbf2osm         emulate pbf2osm output format\n"
 "--fake-author             set changeset to 1 and timestamp to 1970\n"
@@ -198,6 +199,11 @@ const char* helptext=
 "        The output file will not contain any object which exists in\n"
 "        one of the input files following this directive. For example:\n"
 "        osmconvert input.o5m --subtract minus.o5m -o=output.o5m\n"
+"\n"
+"--pbf-granularity=<val>\n"
+"        Rarely .pbf files come with non-standard granularity.\n"
+"        osmconvert will recognize this and suggest to specify the\n"
+"        abnormal lon/lat granularity using this command line option.\n"
 "\n"
 "--emulate-osmosis\n"
 "--emulate-pbf2osm\n"
@@ -499,6 +505,11 @@ static bool global_outosh= false;  // output shall have .osh format
 static bool global_outpbf= false;  // output shall have .pbf format
 static bool global_outcsv= false;  // output shall have .csv format
 static bool global_outnone= false;  // no standard output at all
+static int32_t global_pbfgranularity= 100;
+  // granularity of lon/lat in .pbf files; unit: 1 nanodegree;
+static int32_t global_pbfgranularity100= 0;
+  // granularity of lon/lat in .pbf files; unit: 100 nanodegrees;
+  // 0: default: 100 nanodegrees;
 static bool global_emulatepbf2osm= false;
   // emulate pbf2osm compatible output
 static bool global_emulateosmosis= false;
@@ -3105,8 +3116,14 @@ return 0;
         nodelon<nodelone) {  // dense nodes left
       // provide a node
       pb_id+= pbf_sint64(&nodeid);
-      pb_lat+= pbf_sint32(&nodelat);
-      pb_lon+= pbf_sint32(&nodelon);
+      if(global_pbfgranularity100!=0) {
+        pb_lat+= pbf_sint32(&nodelat)*global_pbfgranularity100;
+        pb_lon+= pbf_sint32(&nodelon)*global_pbfgranularity100;
+        }
+      else {
+        pb_lat+= pbf_sint32(&nodelat);
+        pb_lon+= pbf_sint32(&nodelon);
+        }
       if(nodever>=nodevere || nodetime>=nodetimee ||
           nodecset>=nodecsete || nodeuid>=nodeuide ||
           nodeuser>=nodeusere)  // no author information available
@@ -3810,8 +3827,16 @@ return 0;
             if(bp[1]!=0x01) goto d_unknown;
             bp+= 2;
             l= pbf_uint32(&bp);
-            if(l!=100)
-              ENDEv(-121,"node nanodegrees must be 100: %u",l)
+            if(l!=global_pbfgranularity) {
+              if(l>100)
+                ENDEv(-120,"please specify: "
+                  "--pbf-granularity=%u",l)
+              else if(l==100)
+                ENDE(-120,"please do not specify "
+                  "--pbf-granularity")
+              else
+                ENDEv(-121,"granularity %u must be >=100.",l)
+              }
             break;
           case 0x90:  // 0x01 V 18, millisec
             if(bp[1]!=0x01) goto d_unknown;
@@ -11602,6 +11627,13 @@ return 0;
     if(strcmp(a,"--out-csv")==0) {
         // user wants output in CSV format
       global_outcsv= true;
+  continue;  // take next parameter
+      }
+    if((l= strzlcmp(a,"--pbf-granularity="))>0 && a[l]!=0) {
+        // specify lon/lat granularity for .pbf input files
+      global_pbfgranularity= oo__strtouint32(a+l);
+      global_pbfgranularity100= global_pbfgranularity/100;
+      if(global_pbfgranularity==1) global_pbfgranularity= 0;
   continue;  // take next parameter
       }
     if(strzcmp(a,"--emulate-pbf2")==0) {
