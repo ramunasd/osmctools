@@ -1,5 +1,5 @@
-// osmconvert 2014-11-15 14:50
-#define VERSION "0.8.2"
+// osmconvert 2014-11-15 21:10
+#define VERSION "0.8.3"
 //
 // compile this file:
 // gcc osmconvert.c -lz -O3 -o osmconvert
@@ -204,6 +204,7 @@ const char* helptext=
 "        Rarely .pbf files come with non-standard granularity.\n"
 "        osmconvert will recognize this and suggest to specify the\n"
 "        abnormal lon/lat granularity using this command line option.\n"
+"        Allowed values are: 100 (default), 1000, 10000, ..., 10000000.\n"
 "\n"
 "--emulate-osmosis\n"
 "--emulate-pbf2osm\n"
@@ -11633,6 +11634,7 @@ return 0;
         // specify lon/lat granularity for .pbf input files
       global_pbfgranularity= oo__strtouint32(a+l);
       global_pbfgranularity100= global_pbfgranularity/100;
+      global_pbfgranularity= global_pbfgranularity100*100;
       if(global_pbfgranularity==1) global_pbfgranularity= 0;
   continue;  // take next parameter
       }
