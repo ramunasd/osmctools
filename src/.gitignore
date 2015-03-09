@@ -1,0 +1,6 @@
+osmchange
+osmconvert
+osmfilter
+osmupdate
+pbftoosm
+*.o
