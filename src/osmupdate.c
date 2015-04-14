@@ -1,10 +1,10 @@
-// osmupdate 2014-10-13 21:00
-#define VERSION "0.3H"
+// osmupdate 2015-04-14 19:50
+#define VERSION "0.4.0"
 //
 // compile this file:
 // gcc osmupdate.c -o osmupdate
 //
-// (c) 2011..2014 Markus Weber, Nuernberg
+// (c) 2011..2015 Markus Weber, Nuernberg
 //
 // This program is free software; you can redistribute it and/or
 // modify it under the terms of the GNU Affero General Public License
@@ -27,11 +27,6 @@ const char* helptext=
 "\"planet.openstreetmap.org\".\n"
 "It also can assemble a new .osc or .o5c file which can be used to\n"
 "update your OSM data file at a later time.\n"
-"\n"
-"If there is no file timestamp available within your input file, you\n"
-"need to specify the appropriate timestamp manually. In this case, it\n"
-"is recommended to pick a timestamp of one or two days earlier than\n"
-"necessary, just to be on the save side.\n"
 "\n"
 "Prequesites\n"
 "\n"
