@@ -1,5 +1,5 @@
-// osmupdate 2015-04-14 19:50
-#define VERSION "0.4.0"
+// osmupdate 2015-04-15 10:00
+#define VERSION "0.4.1"
 //
 // compile this file:
 // gcc osmupdate.c -o osmupdate
@@ -102,7 +102,7 @@ const char* helptext=
 "        and daily changefiles. If you want to limit these changefile\n"
 "        categories, use one or two of these options and choose that\n"
 "        category/ies you want to be used.\n"
-"        The option --sporadic allows to process changefile sources\n"
+"        The option --sporadic allows processing changefile sources\n"
 "        which do not have the usual \"minute\", \"hour\" and \"day\"\n"
 "        subdirectories.\n"
 "\n"
@@ -1647,4 +1647,3 @@ return 21;
 
   return main_return_value;
   }  // end   main()
-
