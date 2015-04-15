@@ -6,7 +6,7 @@ endif
 
 if ENABLE_OSMCONVERT
 osmconvert_SOURCES = osmconvert.c
-osmconvert_LDFLAGS = -lz
+osmconvert_LDADD = -lz
 endif
 
 osmfilter_SOURCES = osmfilter.c
