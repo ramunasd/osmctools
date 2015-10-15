@@ -1,10 +1,10 @@
-// osmfilter 2014-10-15 12:20
-#define VERSION "1.3A"
+// osmfilter 2015-04-14 19:50
+#define VERSION "1.4.0"
 //
 // compile this file:
 // gcc osmfilter.c -O3 -o osmfilter
 //
-// (c) 2011..2014 Markus Weber, Nuernberg
+// (c) 2011..2015 Markus Weber, Nuernberg
 //
 // This program is free software; you can redistribute it and/or
 // modify it under the terms of the GNU Affero General Public License
@@ -404,6 +404,7 @@ static byte digival_tab[]= {
 static int loglevel= 0;  // logging to stderr;
   // 0: no logging; 1: small logging; 2: normal logging;
   // 3: extended logging;
+#define UR(x) if(x){}  // result value intentionally ignored
 #define DP(f) fprintf(stderr,"- Debug: " #f "\n");
 #define DPv(f,...) fprintf(stderr,"- Debug: " #f "\n",__VA_ARGS__);
 #if __WIN32__
@@ -3014,7 +3015,7 @@ static bool rr__writemode;  // buffer is used for writing
 static void rr__flush() {
   if(!rr__writemode || rr__bufp==rr__buf)
 return;
-  write(rr__fd,rr__buf,(char*)rr__bufp-(char*)rr__buf);
+  UR(write(rr__fd,rr__buf,(char*)rr__bufp-(char*)rr__buf))
   rr__bufp= rr__buf;
   }  // end   rr__flush()
 

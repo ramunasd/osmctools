@@ -1,10 +1,10 @@
-// osmconvert 2014-11-15 21:10
-#define VERSION "0.8.3"
+// osmconvert 2015-04-13 14:20
+#define VERSION "0.8.4"
 //
 // compile this file:
 // gcc osmconvert.c -lz -O3 -o osmconvert
 //
-// (c) 2011..2014 Markus Weber, Nuernberg
+// (c) 2011..2015 Markus Weber, Nuernberg
 // Richard Russo contributed the initiative to --add-bbox-tags option
 //
 // This program is free software; you can redistribute it and/or
@@ -456,6 +456,7 @@ static int loglevel= 0;  // logging to stderr;
   if((i%16)==0) fprintf(stderr,"\n "); \
   fprintf(stderr," %02x",*pp++); } \
   fprintf(stderr,"\n"); } }
+#define UR(x) if(x){}  // result value intentionally ignored
 #if __WIN32__
   #define NL "\r\n"  // use CR/LF as new-line sequence
   #define off_t off64_t
@@ -5666,7 +5667,7 @@ static bool posr__writemode;  // buffer is used for writing
 static inline void posr__flush() {
   if(!posr__writemode || posr__bufp==posr__buf)
 return;
-  write(posr__fd,posr__buf,(char*)posr__bufp-(char*)posr__buf);
+  UR(write(posr__fd,posr__buf,(char*)posr__bufp-(char*)posr__buf))
   posr__bufp= posr__buf;
   }  // end   posr__flush()
 
@@ -5947,7 +5948,7 @@ static bool rr__writemode;  // buffer is used for writing
 static inline void rr__flush() {
   if(!rr__writemode || rr__bufp==rr__buf)
 return;
-  write(rr__fd,rr__buf,(char*)rr__bufp-(char*)rr__buf);
+  UR(write(rr__fd,rr__buf,(char*)rr__bufp-(char*)rr__buf))
   rr__bufp= rr__buf;
   }  // end   rr__flush()
 
@@ -6074,7 +6075,7 @@ static bool cwn__writemode;  // buffer is used for writing
 static inline void cwn__flush() {
   if(!cwn__writemode || cwn__bufp==cwn__buf)
 return;
-  write(cwn__fd,cwn__buf,(char*)cwn__bufp-(char*)cwn__buf);
+  UR(write(cwn__fd,cwn__buf,(char*)cwn__bufp-(char*)cwn__buf))
   cwn__bufp= cwn__buf;
   }  // end   cwn__flush()
 
@@ -6205,7 +6206,7 @@ static bool cww__writemode;  // buffer is used for writing
 static inline void cww__flush() {
   if(!cww__writemode || cww__bufp==cww__buf)
 return;
-  write(cww__fd,cww__buf,(char*)cww__bufp-(char*)cww__buf);
+  UR(write(cww__fd,cww__buf,(char*)cww__bufp-(char*)cww__buf))
   cww__bufp= cww__buf;
   }  // end   cww__flush()
 
@@ -11014,7 +11015,7 @@ static bool assistant(int* argcp,char*** argvp) {
     "(Zum Schließen dieses Fensters bitte die Eingabetaste druecken.)\n"
     };
   #define DD(s) fprintf(stderr,"%s",(s[lang]));  // display text
-  #define DI(s) fgets(s,sizeof(s),stdin); \
+  #define DI(s) s[0]= 0; UR(fgets(s,sizeof(s),stdin)) \
     if(strchr(s,'\r')!=NULL) *strchr(s,'\r')= 0; \
     if(strchr(s,'\n')!=NULL) *strchr(s,'\n')= 0;  // get user's response
   bool
