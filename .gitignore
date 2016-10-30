@@ -12,10 +12,12 @@ config.status
 include/config.h
 include/stamp-h1
 src/.deps/
+src/*.o
 src/Makefile
 src/osmconvert
-src/osmconvert.o
 src/osmfilter
-src/osmfilter.o
 src/osmupdate
-src/osmupdate.o
+src/osmassignpoly
+src/osmgeobase
+src/osmposition
+src/osmrelpoly

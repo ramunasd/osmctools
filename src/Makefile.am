@@ -1,4 +1,4 @@
-bin_PROGRAMS = osmconvert osmfilter osmupdate osmchange pbftoosm
+bin_PROGRAMS = osmconvert osmfilter osmupdate osmchange pbftoosm osmrelpoly osmassignpoly osmgeobase osmposition
 
 osmconvert_SOURCES = osmconvert.c
 osmconvert_LDFLAGS = 
@@ -10,3 +10,5 @@ osmupdate_SOURCES = osmupdate.c
 
 pbftoosm_SOURCES = pbftoosm.c
 pbftoosm_LDADD = -lz
+
+
