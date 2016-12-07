@@ -33,5 +33,6 @@ This package contains latest version of all tools without any modifications or c
 ```
   git clone https://github.com/ramunasd/osmctools.git
   cd osmctools
+  autoreconf --install
   make install
 ```
