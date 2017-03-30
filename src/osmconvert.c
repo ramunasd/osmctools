@@ -1,10 +1,10 @@
-// osmconvert 2016-02-12 20:30
-#define VERSION "0.8.5"
+// osmconvert 2017-03-23 08:50
+#define VERSION "0.8.6"
 //
 // compile this file:
 // gcc osmconvert.c -lz -O3 -o osmconvert
 //
-// (c) 2011..2016 Markus Weber, Nuernberg
+// (c) 2011..2017 Markus Weber, Nuernberg
 // Richard Russo contributed the initiative to --add-bbox-tags option
 //
 // This program is free software; you can redistribute it and/or
@@ -1813,9 +1813,8 @@ return false;
       if(s[0]!=' ' && s[0]!='\t') {  // not inside a section
         if(x0!=nil && x1!=nil && (x1!=x0 || y1!=y0)) {
             // last polygon was not closed
-          if(x1==x0) {  // the edge would be vertical
-            // we have to insert an additional edge
-            x0+= 3;
+          if(x1!=x0) {  // missing edge not in north-south direction
+            // close the polygon
             if(x0>x1)
               { bep->x1= x1; bep->y1= y1; bep->x2= x0; bep->y2= y0; }
             else
@@ -1823,24 +1822,10 @@ return false;
             bep->chain= NULL;
             if(loglevel>=1)
               fprintf(stderr,
-                "+ %i %"PRIi32",%"PRIi32",%"PRIi32",%"PRIi32"\n",
-                (int)(bep-border__edge),
-                bep->x1,bep->y1,bep->x2,bep->y2);
+                "c %i %"PRIi32",%"PRIi32",%"PRIi32",%"PRIi32"\n",
+                (int)(bep-border__edge),bep->x1,bep->y1,bep->x2,bep->y2);
             bep++;
-            x1= x0; y1= y0;
-            x0-= 3;
-            }  // the edge would be vertical
-          // close the polygon
-          if(x0>x1)
-            { bep->x1= x1; bep->y1= y1; bep->x2= x0; bep->y2= y0; }
-          else
-            { bep->x1= x0; bep->y1= y0; bep->x2= x1; bep->y2= y1; }
-          bep->chain= NULL;
-          if(loglevel>=1)
-            fprintf(stderr,
-              "c %i %"PRIi32",%"PRIi32",%"PRIi32",%"PRIi32"\n",
-              (int)(bep-border__edge),bep->x1,bep->y1,bep->x2,bep->y2);
-          bep++;
+            }  // missing edge not in north-south direction
           }  // end   last polygon was not closed
         x0= x1= nil;
         }  // end   not inside a section
@@ -1856,20 +1841,22 @@ return false;
           }
         if(x!=nil) {  // data plausible
           if(x1!=nil) {  // there is a preceding coordinate
-            if(x==x1) x+= 2;  // do not accept exact north-south
-              // lines, because then we may not be able to determine
-              // if a point lies inside or outside the polygon;
-            if(x>x1)
-              { bep->x1= x1; bep->y1= y1; bep->x2= x; bep->y2= y; }
-            else
-              { bep->x1= x; bep->y1= y; bep->x2= x1; bep->y2= y1; }
-            bep->chain= NULL;
-            if(loglevel>=1)
-              fprintf(stderr,
-                "- %i %"PRIi32",%"PRIi32",%"PRIi32",%"PRIi32"\n",
-                (int)(bep-border__edge),
-                bep->x1,bep->y1,bep->x2,bep->y2);
-            bep++;
+            if(x1!=x) {  // new edge not in north-south direction;
+                // we do not accept exact north-south lines,
+                // because then we may not be able to determine
+                // if a point lies inside or outside the polygon;
+              if(x>x1)
+                { bep->x1= x1; bep->y1= y1; bep->x2= x; bep->y2= y; }
+              else
+                { bep->x1= x; bep->y1= y; bep->x2= x1; bep->y2= y1; }
+              bep->chain= NULL;
+              if(loglevel>=1)
+                fprintf(stderr,
+                  "- %i %"PRIi32",%"PRIi32",%"PRIi32",%"PRIi32"\n",
+                  (int)(bep-border__edge),
+                  bep->x1,bep->y1,bep->x2,bep->y2);
+              bep++;
+              }  // new edge not in north-south direction
             }  // end   there is a preceding coordinate
           x1= x; y1= y;
           if(x0==nil)
@@ -2017,20 +2004,18 @@ return false;
 return true;
     cross= 0;
 
-    /* binary-search the edge with the closest x1 */ {
+    /* binary-search the edge with the closest x1 | x1<=x */ {
       int i,i1,i2;  // iteration indexes
 
       i1= 0; i2= border__edge_n;
       while(i2>i1+1) {
         i= (i1+i2)/2;
         bep= border__edge+i;
-//fprintf(stderr,"s %i %i %i   %li\n",i1,i,i2,bep->x1); ///
         if(bep->x1 > x) i2= i;
         else i1= i;
-//fprintf(stderr,"  %i %i %i\n",i1,i,i2); ///
         }
       bep= border__edge+i1;
-      }  // end   binary-search the edge with the closest x1
+      }  // binary-search the edge with the closest x1 | x1<=x
 
     bcp= NULL;
       // (default, because we want to examine the own edge first)
