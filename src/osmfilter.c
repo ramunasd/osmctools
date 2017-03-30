@@ -1,5 +1,5 @@
-// osmfilter 2016-03-25 16:30
-#define VERSION "1.4.1"
+// osmfilter 2017-03-30 19:00
+#define VERSION "1.4.2"
 //
 // compile this file:
 // gcc osmfilter.c -O3 -o osmfilter
@@ -39,10 +39,10 @@ const char* shorthelptext=
 "--keep-node-way-tags=\n"
 "--keep-node-relation-tags=\n"
 "--keep-way-relation-tags=\n"
-"--modify-tags=            define which tags are to be modified\n"
-"--modify-...-tags=        similar to --keep-...-tags= (see above)\n"
 "--drop-tags=              define which tags are to be dropped\n"
 "--drop-...-tags=          similar to --keep-...-tags= (see above)\n"
+"--modify-tags=            define which tags are to be modified\n"
+"--modify-...-tags=        similar to --keep-...-tags= (see above)\n"
 "--drop-author             delete changeset and user information\n"
 "--drop-version            same as before, but delete version as well\n"
 "--drop-nodes              delete all nodes\n"
