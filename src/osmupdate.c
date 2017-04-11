@@ -1,10 +1,10 @@
-// osmupdate 2015-04-15 10:00
-#define VERSION "0.4.1"
+// osmupdate 2017-02-26 16:40
+#define VERSION "0.4.4"
 //
 // compile this file:
 // gcc osmupdate.c -o osmupdate
 //
-// (c) 2011..2015 Markus Weber, Nuernberg
+// (c) 2011..2017 Markus Weber, Nuernberg
 //
 // This program is free software; you can redistribute it and/or
 // modify it under the terms of the GNU Affero General Public License
@@ -131,6 +131,14 @@ const char* helptext=
 "        change file sources (option --base-url). This would cause\n"
 "        severe data corruption.\n"
 "\n"
+"--trust-tempfiles\n"
+"        Use this option if you want to use the saved local copies\n"
+"        of already downloaded changefiles without checking their\n"
+"        lengths against to their server-hosted originals.\n"
+"        Downloads will be limited to files not saved yet.\n"
+"        Do not invoke this option if you suspect incomplete\n"
+"        downloads.\n"
+"\n"
 "--compression-level=LEVEL\n"
 "        Define level for gzip compression. Values between 1 (low\n"
 "        compression, but fast) and 9 (high compression, but slow).\n"
@@ -160,7 +168,6 @@ const char* helptext=
 "Please send any bug reports to markus.weber@gmx.com\n\n";
 
 #define _FILE_OFFSET_BITS 64
-#include <zlib.h>
 #include <inttypes.h>
 #include <stdlib.h>
 #include <string.h>
@@ -498,6 +505,8 @@ static char global_tempfile_name[450]= "";
   // prefix of names for temporary files
 static bool global_keep_tempfiles= false;
   // temporary files shall not be deleted at program end
+static bool global_trust_tempfiles= false;
+  // Cached files are considered to be intact
 static char global_osmconvert_arguments[2000]= "";
   // general command line arguments for osmconvert;
 #define max_number_of_changefiles_in_cache 100
@@ -917,58 +926,70 @@ static void process_changefile(
 
     // assemble the URL and download the changefile
     old_file_length= file_length(this_cachefile_name);
-    if(loglevel>0 && old_file_length<10)
-        // verbose mode AND file not downloaded yet
-      PINFOv("%s changefile %i: downloading",
-        CFTNAME(changefile_type),file_sequence_number)
-    command_p= command;
-    stecpy(&command_p,command_e,"wget -nv -c ");
-    stecpy(&command_p,command_e,global_base_url);
-    switch(changefile_type) {  // changefile type
-    case cft_MINUTELY:
-      stecpy(&command_p,command_e,"/minute");
-      break;
-    case cft_HOURLY:
-      stecpy(&command_p,command_e,"/hour");
-      break;
-    case cft_DAILY:
-      stecpy(&command_p,command_e,"/day");
-      break;
-    case cft_SPORADIC:
-      break;
-    default:  // invalid change file type
-      return;
-      }  // changefile type
-    stecpy(&command_p,command_e,global_base_url_suffix);
-    stecpy(&command_p,command_e,"/");
+    if(global_trust_tempfiles && old_file_length>=10) {
+        // trusted file already in cache
+      if(loglevel>0)  // verbose mode
+        PINFOv("%s changefile %i: trusting local copy",
+          CFTNAME(changefile_type),file_sequence_number)
+      }  // trusted file already in cache
+    else {  // file not in cache or not trusted
+      if(loglevel>0) {  // verbose mode
+        if(old_file_length<10)  // file not downloaded yet
+          PINFOv("%s changefile %i: downloading",
+            CFTNAME(changefile_type),file_sequence_number)
+        else  // file had been downloaded at least partially
+          PINFOv("%s changefile %i: checking",
+            CFTNAME(changefile_type),file_sequence_number)
+        }  // verbose mode
+      command_p= command;
+      stecpy(&command_p,command_e,"wget -nv -c ");
+      stecpy(&command_p,command_e,global_base_url);
+      switch(changefile_type) {  // changefile type
+      case cft_MINUTELY:
+        stecpy(&command_p,command_e,"/minute");
+        break;
+      case cft_HOURLY:
+        stecpy(&command_p,command_e,"/hour");
+        break;
+      case cft_DAILY:
+        stecpy(&command_p,command_e,"/day");
+        break;
+      case cft_SPORADIC:
+        break;
+      default:  // invalid change file type
+        return;
+        }  // changefile type
+      stecpy(&command_p,command_e,global_base_url_suffix);
+      stecpy(&command_p,command_e,"/");
 
-    /* process sequence number */ {
-      int l;
-      l= sprintf(command_p,"%03i/%03i/%03i.osc.gz",
-        file_sequence_number/1000000,file_sequence_number/1000%1000,
-        file_sequence_number%1000);
-      command_p+= l;
-      }  // process sequence number
+      /* process sequence number */ {
+        int l;
+        l= sprintf(command_p,"%03i/%03i/%03i.osc.gz",
+          file_sequence_number/1000000,file_sequence_number/1000%1000,
+          file_sequence_number%1000);
+        command_p+= l;
+        }  // process sequence number
 
-    stecpy(&command_p,command_e," -O \"");
-    steesccpy(&command_p,command_e,this_cachefile_name);
-    stecpy(&command_p,command_e,"\" 2>&1 && echo \"Wget Command Ok\"");
-    shell_command(command,result);
-    if(strstr(result,"Wget Command Ok")==NULL) {  // download error
-      PERRv("Could not download %s changefile %i",
-        CFTNAME(changefile_type),file_sequence_number)
-      PINFOv("wget Error message:\n%s",result)
+      stecpy(&command_p,command_e," -O \"");
+      steesccpy(&command_p,command_e,this_cachefile_name);
+      stecpy(&command_p,command_e,"\" 2>&1 && echo \"Wget Command Ok\"");
+      shell_command(command,result);
+      if(strstr(result,"Wget Command Ok")==NULL) {  // download error
+        PERRv("Could not download %s changefile %i",
+          CFTNAME(changefile_type),file_sequence_number)
+        PINFOv("wget Error message:\n%s",result)
 exit(1);
-      }
-    if(loglevel>0 && old_file_length>=10) {
-        // verbose mode AND file was already in cache
-      if(file_length(this_cachefile_name)!=old_file_length)
-        PINFOv("%s changefile %i: download completed",
-          CFTNAME(changefile_type),file_sequence_number)
-      else
-        PINFOv("%s changefile %i: already in cache",
-          CFTNAME(changefile_type),file_sequence_number)
-      }  // verbose mode
+        }
+      if(loglevel>0 && old_file_length>=10) {
+          // verbose mode AND file was already in cache
+        if(file_length(this_cachefile_name)!=old_file_length)
+          PINFOv("%s changefile %i: download completed",
+            CFTNAME(changefile_type),file_sequence_number)
+        else
+          PINFOv("%s changefile %i: already in cache",
+            CFTNAME(changefile_type),file_sequence_number)
+        }  // verbose mode
+      }  // file not in cache or not trusted
     number_of_changefiles_in_cache++;
     }  // changefile download requested
 
@@ -1007,7 +1028,9 @@ exit(1);
     shell_command(command,result);
     if(file_length(master_cachefile_name_temp)<10 ||
         strstr(result,"Error")!=NULL ||
-        strstr(result,"error")!=NULL) {  // merging failed
+        strstr(result,"error")!=NULL ||
+        strstr(result,"Warning")!=NULL ||
+        strstr(result,"warning")!=NULL) {  // merging failed
       PERRv("Merging of changefiles failed:\n%s",command)
       if(result[0]!=0)
         PERRv("%s",result)
@@ -1015,7 +1038,7 @@ exit(1);
       }  // merging failed
     unlink(master_cachefile_name);
     rename(master_cachefile_name_temp,master_cachefile_name);
-    }  // at lease one change files must be merged
+    }  // at least one change file must be merged
   }  // process_changefile()
 
 #if !__WIN32__
@@ -1105,7 +1128,7 @@ int main(int argc,const char** argv) {
   // read command line parameters
   if(argc<=1) {  // no command line parameters given
     fprintf(stderr,"osmupdate " VERSION "\n"
-      "Updates .osm and .o5m files, downloads .osc and o5c files.\n"
+      "Updates .osm, .o5m, .pbf files, downloads .osc, .o5c files.\n"
       "To get detailed help, please enter: ./osmupdate -h\n");
 return 0;  // end the program, because without having parameters
       // we do not know what to do;
@@ -1146,7 +1169,7 @@ return 0;
       }
     if((strzcmp(a,"-t=")==0 || strzcmp(a,"--tempfiles=")==0) &&
         global_tempfile_name[0]==0) {
-        // user-defined prefix for names of temorary files
+        // user-defined prefix for names of temporary files
       strmcpy(global_tempfile_name,strchr(a,'=')+1,
         sizeof(global_tempfile_name)-50);
   continue;  // take next parameter
@@ -1154,6 +1177,11 @@ return 0;
     if(strzcmp(a,"--keep-tempfiles")==0) {
         // temporary files shall not be deleted at program end
       global_keep_tempfiles= true;
+  continue;  // take next parameter
+      }
+    if(strzcmp(a,"--trust-tempfiles")==0) {
+        // cached files are considered to be intact
+      global_trust_tempfiles= true;
   continue;  // take next parameter
       }
     if(strzcmp(a,"--compression-level=")==0) {
@@ -1364,7 +1392,7 @@ return 1;
   // care about user defined processing categories
   if(process_minutely || process_hourly ||
       process_daily || process_sporadic) {
-      // user wants specific type(s) of chancefiles to be processed
+      // user wants specific type(s) of changefiles to be processed
     if(!process_minutely) no_minutely= true;
     if(!process_hourly) no_hourly= true;
     if(!process_daily) no_daily= true;

@@ -1,10 +1,10 @@
-// osmfilter 2015-04-14 19:50
-#define VERSION "1.4.0"
+// osmfilter 2017-03-30 19:00
+#define VERSION "1.4.2"
 //
 // compile this file:
 // gcc osmfilter.c -O3 -o osmfilter
 //
-// (c) 2011..2015 Markus Weber, Nuernberg
+// (c) 2011..2017 Markus Weber, Nuernberg
 //
 // This program is free software; you can redistribute it and/or
 // modify it under the terms of the GNU Affero General Public License
@@ -41,6 +41,8 @@ const char* shorthelptext=
 "--keep-way-relation-tags=\n"
 "--drop-tags=              define which tags are to be dropped\n"
 "--drop-...-tags=          similar to --keep-...-tags= (see above)\n"
+"--modify-tags=            define which tags are to be modified\n"
+"--modify-...-tags=        similar to --keep-...-tags= (see above)\n"
 "--drop-author             delete changeset and user information\n"
 "--drop-version            same as before, but delete version as well\n"
 "--drop-nodes              delete all nodes\n"
@@ -138,6 +140,19 @@ const char* helptext=
 "--drop-way-relation-tags=TAG_FILTER\n"
 "        Same as above, but just for the specified object types.\n"
 "\n"
+"--modify-tags=TAG_MODIFICATION_LIST\n"
+"        The specified tags will be modified. This is done after any\n"
+"        filtering (see --keep, --keep-tags, --drop, --drop-tags).\n"
+"        Please look below for a description of TAG_MODIFICATION_LIST.\n"
+"\n"
+"--modify-node-tags=TAG_MODIFICATION_LIST\n"
+"--modify-way-tags=TAG_MODIFICATION_LIST\n"
+"--modify-relation-tags=TAG_MODIFICATION_LIST\n"
+"--modify-node-way-tags=TAG_MODIFICATION_LIST\n"
+"--modify-node-relation-tags=TAG_MODIFICATION_LIST\n"
+"--modify-way-relation-tags=TAG_MODIFICATION_LIST\n"
+"        Same as above, but just for the specified object types.\n"
+"\n"
 "--drop-author\n"
 "        For most applications the author tags are not needed. If you\n"
 "        specify this option, no author information will be written:\n"
@@ -212,7 +227,8 @@ const char* helptext=
 "        their ids only.\n"
 "\n"
 "--out-osh\n"
-"        For every OSM object, the appropriate \'visible\' tag will be\n" "        added to meet \'full planet history\' specification.\n"
+"        For every OSM object, the appropriate \'visible\' tag will be\n"
+"        added to meet \'full planet history\' specification.\n"
 "\n"
 "--out-o5m\n"
 "        The .o5m format will be used. This format has the same\n"
@@ -269,7 +285,7 @@ const char* helptext=
 "          \"amenity=restaurant =pub =bar\"\n"
 "        It is allowed to omit the value. In this case, the program\n"
 "        will accept every value for the defined key. For example:\n"
-"          \"all highway= lit=yes\"\n"
+"          \"highway= and lit=yes\"\n"
 "        You may use wildcard characters for key or value, but only at\n"
 "        the beginning and/or at the end. For example:\n"
 "          wikipedia:*=  highway=*ary  ref_name=*central*\n"
@@ -288,6 +304,14 @@ const char* helptext=
 "        deleted, nor the remaining tags. If you want to drop every\n"
 "        tag which is not mentioned in a list, use this example:\n"
 "          all highway= amenity= name=\n"
+"\n"
+"TAG_MODIFICATION_LIST\n"
+"        The tag modification list determines which tags will be\n"
+"        modified. The example\n"
+"          --modify-tags=\"highway=primary to =secondary\"\n"
+"        will change every \"primary\" highway into \"secondary\".\n"
+"        You can also use comparisons or add additional tags:\n"
+"          --modify-way-tags=\"maxspeed>200 add highspeed=yes\"\n"
 "\n"
 "Examples\n"
 "\n"
@@ -1111,7 +1135,7 @@ static inline bool read_input() {
   // having available at least read_PREFETCH bytes at address
   // read_bufp - with one exception: if there are not enough bytes
   // left to read from standard input, every byte after the end of
-  // the reminding part of the file in the buffer will be set to
+  // the remaining part of the file in the buffer will be set to
   // 0x00 - up to read_bufp+read_PREFETCH;
   int l,r;
 
@@ -1135,10 +1159,10 @@ static inline bool read_input() {
           read_infop->eof= true;
             // memorize that there we are at end of file
           l= (read__buf+read__bufM)-read_bufe;
-            // reminding space in buffer
+            // remaining space in buffer
           if(l>read_PREFETCH) l= read_PREFETCH;
           memset(read_bufe,0,l);  // 2011-12-24
-            // set reminding space up to prefetch bytes in buffer to 0
+            // set remaining space up to prefetch bytes in buffer to 0
       break;
           }
         read_infop->read__counter+= r;
@@ -1894,7 +1918,7 @@ static void count_write() {
 // the sections of private and public definitions are separated
 // by a horizontal line: ----
 
-static inline void fil_stresccpy(char *dest, const char *src,
+static inline void fil__stresccpy(char *dest, const char *src,
     size_t len) {
   // similar as strmpy(), but remove every initial '\\' character;
   // len: length of the source string - without terminating zero;
@@ -1906,7 +1930,7 @@ static inline void fil_stresccpy(char *dest, const char *src,
     *dest++= *src++;
     }
   *dest= 0;
-  }  // end   fil_stresccpy()
+  }  // end   fil__stresccpy()
 
 static inline bool fil__cmp(const char* s1,const char* s2) {
   // this procedure compares two character strings;
@@ -2392,12 +2416,12 @@ static inline void fil_cpy(char *dest, const char *src,
     if(isdig(*v))  // numeric value
       op+= 8;
     dest[0]= op;
-    fil_stresccpy(dest+1,src,len);  // store this value
+    fil__stresccpy(dest+1,src,len);  // store this value
     }  // no wildcard(s)
   else {  // wildcard(s)
     dest[0]= op&1;
     dest[1]= wc;
-    fil_stresccpy(dest+2,src,len);  // store this value
+    fil__stresccpy(dest+2,src,len);  // store this value
     }  // wildcard(s)
   }  // end   fil_cpy()
 
@@ -2988,6 +3012,710 @@ return false;
 
 //------------------------------------------------------------
 // end   Module fil_   osm filter module
+//------------------------------------------------------------
+
+
+
+//------------------------------------------------------------
+// Module modi_   OSM tag modification module
+//------------------------------------------------------------
+
+// this module provides tag modification functionality;
+// as usual, all identifiers of a module have the same prefix,
+// in this case 'modi'; an underline will follow in case of a
+// global accessible object, two underlines in case of objects
+// which are not meant to be accessed from outside this module;
+// the sections of private and public definitions are separated
+// by a horizontal line: ----
+
+static inline void modi__stresccpy(char *dest, const char *src,
+    size_t len) {
+  // similar as strmpy(), but remove every initial '\\' character;
+  // len: length of the source string - without terminating zero;
+  while(len>0) {
+    if(*src=='\\') { src++; len--; }
+    if(!(len>0) || *src==0)
+  break;
+    len--;
+    *dest++= *src++;
+    }
+  *dest= 0;
+  }  // end   modi__stresccpy()
+
+static inline bool modi__cmp(const char* s1,const char* s2) {
+  // this procedure compares two character strings;
+  // s1[]: first string;
+  // s2[0]: operator which shall be used for comparison;
+  //         0: '=', and there are wildcards coded in s2[1]:
+  //                 s2[1]==1: wildcard at start;
+  //                 s2[1]==2: wildcard at end;
+  //                 s2[1]==3: wildcard at both, start and end;
+  //         1: '!=', and there are wildcards coded in s2[1];
+  //         2: '='
+  //         4: '<'
+  //         5: '>='
+  //         6: '>'
+  //         7: '<='
+  //         8: unused
+  //         9: unused
+  //        10: '=', numeric
+  //        11: '!=', numeric
+  //        12: '<', numeric
+  //        13: '>=', numeric
+  //        14: '>', numeric
+  //        15: '<=', numeric
+  // s2+1: string to compare with the first string;
+  //       this string will start at s2+2 if wildcards are supplied;
+  // return: condition is met;
+  int op,wc;  // operator, wildcard flags
+  int diff;  // (for numeric comparison)
+  unsigned char s1v,s2v;  // (for numeric comparison)
+
+  op= *s2++;
+  if(op==2) { // '='
+    // first we care about the 'equal' operator
+    // because it's the most frequently used option
+    while(*s1==*s2 && *s1!=0) { s1++; s2++; }
+    return *s1==0 && *s2==0;
+    }
+  switch(op) {  // depending on comparison operator
+  case 0:  // '=', and there are wildcards
+    wc= *s2++;
+    if(wc==2) {  // wildcard at end
+      while(*s1==*s2 && *s1!=0) { s1++; s2++; }
+      return *s2==0;
+      }  // wildcard at end
+    if(wc==1) {  // wildcard at start
+      const char* s11,*s22;
+
+      while(*s1!=0) {  // for all start positions in s1[]
+        s11= s1; s22= s2;
+        while(*s11==*s22 && *s11!=0) { s11++; s22++; }
+        if(*s11==0 && *s22==0)
+          return true;
+        s1++;
+        }  // for all start positions in s1[]
+      return false;
+      }  // wildcard at start
+    /* wildcards at start and end */ {
+      const char* s11,*s22;
+
+      while(*s1!=0) {  // for all start positions in s1[]
+        s11= s1; s22= s2;
+        while(*s11==*s22 && *s11!=0) { s11++; s22++; }
+        if(*s22==0)
+          return true;
+        s1++;
+        }  // for all start positions in s1[]
+      return false;
+      }  // wildcards at start and end
+  case 1:  // '!=', and there are wildcards
+    wc= *s2++;
+    if(wc==2) {  // wildcard at end
+      while(*s1==*s2 && *s1!=0) { s1++; s2++; }
+      return *s2!=0;
+      }  // wildcard at end
+    if(wc==1) {  // wildcard at start
+      const char* s11,*s22;
+
+      while(*s1!=0) {  // for all start positions in s1[]
+        s11= s1; s22= s2;
+        while(*s11==*s22 && *s11!=0) { s11++; s22++; }
+        if(*s11==0 && *s22==0)
+          return false;
+        s1++;
+        }  // for all start positions in s1[]
+      return true;
+      }  // wildcard at start
+    /* wildcards at start and end */ {
+      const char* s11,*s22;
+
+      while(*s1!=0) {  // for all start positions in s1[]
+        s11= s1; s22= s2;
+        while(*s11==*s22 && *s11!=0) { s11++; s22++; }
+        if(*s22==0)
+          return false;
+        s1++;
+        }  // for all start positions in s1[]
+      return true;
+      }  // wildcards at start and end
+  //case 2:  // '='  (we already cared about this)
+  case 3:  // '!='
+    while(*s1==*s2 && *s1!=0) { s1++; s2++; }
+    return *s1!=0 || *s2!=0;
+  case 4:  // '<'
+    while(*s1==*s2 && *s1!=0) { s1++; s2++; }
+    return *(unsigned char*)s1 < *(unsigned char*)s2;
+  case 5:  // '>='
+    while(*s1==*s2 && *s1!=0) { s1++; s2++; }
+    return *(unsigned char*)s1 >= *(unsigned char*)s2;
+  case 6:  // '>'
+    while(*s1==*s2 && *s1!=0) { s1++; s2++; }
+    return *(unsigned char*)s1 > *(unsigned char*)s2;
+  case 7:  // '<='
+    while(*s1==*s2 && *s1!=0) { s1++; s2++; }
+    return *(unsigned char*)s1 <= *(unsigned char*)s2;
+  case 10:  // '=', numeric
+    while(*s1=='0') s1++;
+    while(*s2=='0') s2++;
+    while(*s1==*s2 && isdigi(*(unsigned char*)s1))
+      { s1++; s2++; }
+    if(*s1=='.') {
+      if(*s2=='.') {
+        do { s1++; s2++; }
+          while(*s1==*s2 && isdigi(*(unsigned char*)s1));
+        if(!isdigi(*(unsigned char*)s1)) {
+          while(*s2=='0') s2++;
+          return !isdigi(*(unsigned char*)s2);
+          }
+        if(!isdigi(*(unsigned char*)s2)) {
+          while(*s1=='0') s1++;
+          return !isdigi(*(unsigned char*)s1);
+          }
+        return !isdigi(*(unsigned char*)s1) &&
+          !isdigi(*(unsigned char*)s2);
+        }
+      do s1++;
+        while(*s1=='0');
+      return !isdigi(*(unsigned char*)s1);
+      }
+    if(*s2=='.') {
+      do s2++;
+        while(*s2=='0');
+      return !isdigi(*(unsigned char*)s2);
+      }
+    return !isdigi(*(unsigned char*)s1) && !isdigi(*(unsigned char*)s2);
+  case 11:  // '!=', numeric
+    while(*s1=='0') s1++;
+    while(*s2=='0') s2++;
+    while(*s1==*s2 && isdigi(*(unsigned char*)s1))
+      { s1++; s2++; }
+    if(*s1=='.') {
+      if(*s2=='.') {
+        do { s1++; s2++; }
+          while(*s1==*s2 && isdigi(*(unsigned char*)s1));
+        if(!isdigi(*(unsigned char*)s1)) {
+          while(*s2=='0') s2++;
+          return isdigi(*(unsigned char*)s2);
+          }
+        if(!isdigi(*(unsigned char*)s2)) {
+          while(*s1=='0') s1++;
+          return isdigi(*(unsigned char*)s1);
+          }
+        return isdigi(*(unsigned char*)s1) ||
+          isdigi(*(unsigned char*)s2);
+        }
+      do s1++;
+        while(*s1=='0');
+      return isdigi(*(unsigned char*)s1);
+      }
+    if(*s2=='.') {
+      do s2++;
+        while(*s2=='0');
+      return isdigi(*(unsigned char*)s2);
+      }
+    return isdigi(*(unsigned char*)s1) || isdigi(*(unsigned char*)s2);
+  case 12:  /* '<', numeric */
+    #define Ds1 s1
+    #define Ds2 s2
+    s1v= *(unsigned char*)Ds1; s2v= *(unsigned char*)Ds2;
+    if(s1v=='-') {
+      if(s2v=='-') {
+        Ds1++; s2v= *(unsigned char*)Ds1;
+        Ds2++; s1v= *(unsigned char*)Ds2;
+        goto op_14;
+        }
+      return true;
+      }
+    else if(s2v=='-')
+      return false;
+    op_12:
+    while(s1v=='0') { Ds1++; s1v= *(unsigned char*)Ds1; }
+    while(s2v=='0') { Ds2++; s2v= *(unsigned char*)Ds2; }
+    while(s1v==s2v && isdigi(s1v)) {
+      Ds1++; s1v= *(unsigned char*)Ds1;
+      Ds2++; s2v= *(unsigned char*)Ds2;
+      }
+    diff= digival(s1v)-digival(s2v);
+    while(isdigi(s1v) && isdigi(s2v)) {
+      Ds1++; s1v= *(unsigned char*)Ds1;
+      Ds2++; s2v= *(unsigned char*)Ds2;
+      }
+    if(s1v=='.') {
+      if(s2v=='.') {
+        if(diff!=0)
+          return diff<0;
+        do {
+          Ds1++; s1v= *(unsigned char*)Ds1;
+          Ds2++; s2v= *(unsigned char*)Ds2;
+          } while(s1v==s2v && isdigi(s1v));
+        while(s2v=='0') { Ds2++; s2v= *(unsigned char*)Ds2; }
+        return digival(s1v) < digival(s2v);
+        }
+      return isdigi(s2v) || diff<0;
+      }
+    if(s2v=='.') {
+      if(isdigi(s1v))
+        return false;
+      if(diff!=0)
+        return diff<0;
+      do { Ds2++; s2v= *(unsigned char*)Ds2; } while(s2v=='0');
+      return isdigi(s2v);
+      }
+    return isdigi(s2v) || (!isdigi(s1v) && diff<0);
+    #undef Ds1
+    #undef Ds2
+  case 13:  /* '>=', numeric */
+    #define Ds1 s1
+    #define Ds2 s2
+    s1v= *(unsigned char*)Ds1; s2v= *(unsigned char*)Ds2;
+    if(s1v=='-') {
+      if(s2v=='-') {
+        Ds1++; s2v= *(unsigned char*)Ds1;
+        Ds2++; s1v= *(unsigned char*)Ds2;
+        goto op_15;
+        }
+      return false;
+      }
+    else if(s2v=='-')
+      return true;
+    op_13:
+    while(s1v=='0') { Ds1++; s1v= *(unsigned char*)Ds1; }
+    while(s2v=='0') { Ds2++; s2v= *(unsigned char*)Ds2; }
+    while(s1v==s2v && isdigi(s1v)) {
+      Ds1++; s1v= *(unsigned char*)Ds1;
+      Ds2++; s2v= *(unsigned char*)Ds2;
+      }
+    diff= digival(s1v)-digival(s2v);
+    while(isdigi(s1v) && isdigi(s2v)) {
+      Ds1++; s1v= *(unsigned char*)Ds1;
+      Ds2++; s2v= *(unsigned char*)Ds2;
+      }
+    if(s1v=='.') {
+      if(s2v=='.') {
+        if(diff!=0)
+          return diff>=0;
+        do {
+          Ds1++; s1v= *(unsigned char*)Ds1;
+          Ds2++; s2v= *(unsigned char*)Ds2;
+          } while(s1v==s2v && isdigi(s1v));
+        while(s2v=='0') { Ds2++; s2v= *(unsigned char*)Ds2; }
+        return digival(s1v) >= digival(s2v);
+        }
+      return !isdigi(s2v) && diff>=0;
+      }
+    if(s2v=='.') {
+      if(isdigi(s1v))
+        return true;
+      if(diff!=0)
+        return diff>=0;
+      do { Ds2++; s2v= *(unsigned char*)Ds2; } while(s2v=='0');
+      return !isdigi(s2v);
+      }
+    return !isdigi(s2v) && (isdigi(s1v) || diff>=0);
+    #undef Ds1
+    #undef Ds2
+  case 14:  /* '>', numeric */
+    #define Ds1 s2
+    #define Ds2 s1
+    s1v= *(unsigned char*)Ds1; s2v= *(unsigned char*)Ds2;
+    if(s1v=='-') {
+      if(s2v=='-') {
+        Ds1++; s2v= *(unsigned char*)Ds1;
+        Ds2++; s1v= *(unsigned char*)Ds2;
+        goto op_12;
+        }
+      return true;
+      }
+    else if(s2v=='-')
+      return false;
+    op_14:
+    while(s1v=='0') { Ds1++; s1v= *(unsigned char*)Ds1; }
+    while(s2v=='0') { Ds2++; s2v= *(unsigned char*)Ds2; }
+    while(s1v==s2v && isdigi(s1v)) {
+      Ds1++; s1v= *(unsigned char*)Ds1;
+      Ds2++; s2v= *(unsigned char*)Ds2;
+      }
+    diff= digival(s1v)-digival(s2v);
+    while(isdigi(s1v) && isdigi(s2v)) {
+      Ds1++; s1v= *(unsigned char*)Ds1;
+      Ds2++; s2v= *(unsigned char*)Ds2;
+      }
+    if(s1v=='.') {
+      if(s2v=='.') {
+        if(diff!=0)
+          return diff<0;
+        do {
+          Ds1++; s1v= *(unsigned char*)Ds1;
+          Ds2++; s2v= *(unsigned char*)Ds2;
+          } while(s1v==s2v && isdigi(s1v));
+        while(s2v=='0') { Ds2++; s2v= *(unsigned char*)Ds2; }
+        return digival(s1v) < digival(s2v);
+        }
+      return isdigi(s2v) || diff<0;
+      }
+    if(s2v=='.') {
+      if(isdigi(s1v))
+        return false;
+      if(diff!=0)
+        return diff<0;
+      do { Ds2++; s2v= *(unsigned char*)Ds2; } while(s2v=='0');
+      return isdigi(s2v);
+      }
+    return isdigi(s2v) || (!isdigi(s1v) && diff<0);
+    #undef Ds1
+    #undef Ds2
+  case 15:  /* '<=', numeric */
+    #define Ds1 s2
+    #define Ds2 s1
+    s1v= *(unsigned char*)Ds1; s2v= *(unsigned char*)Ds2;
+    if(s1v=='-') {
+      if(s2v=='-') {
+        Ds1++; s2v= *(unsigned char*)Ds1;
+        Ds2++; s1v= *(unsigned char*)Ds2;
+        goto op_13;
+        }
+      return false;
+      }
+    else if(s2v=='-')
+      return true;
+    op_15:
+    while(s1v=='0') { Ds1++; s1v= *(unsigned char*)Ds1; }
+    while(s2v=='0') { Ds2++; s2v= *(unsigned char*)Ds2; }
+    while(s1v==s2v && isdigi(s1v)) {
+      Ds1++; s1v= *(unsigned char*)Ds1;
+      Ds2++; s2v= *(unsigned char*)Ds2;
+      }
+    diff= digival(s1v)-digival(s2v);
+    while(isdigi(s1v) && isdigi(s2v)) {
+      Ds1++; s1v= *(unsigned char*)Ds1;
+      Ds2++; s2v= *(unsigned char*)Ds2;
+      }
+    if(s1v=='.') {
+      if(s2v=='.') {
+        if(diff!=0)
+          return diff>=0;
+        do {
+          Ds1++; s1v= *(unsigned char*)Ds1;
+          Ds2++; s2v= *(unsigned char*)Ds2;
+          } while(s1v==s2v && isdigi(s1v));
+        while(s2v=='0') { Ds2++; s2v= *(unsigned char*)Ds2; }
+        return digival(s1v) >= digival(s2v);
+        }
+      return !isdigi(s2v) && diff>=0;
+      }
+    if(s2v=='.') {
+      if(isdigi(s1v))
+        return true;
+      if(diff!=0)
+        return diff>=0;
+      do { Ds2++; s2v= *(unsigned char*)Ds2; } while(s2v=='0');
+      return !isdigi(s2v);
+      }
+    return !isdigi(s2v) && (isdigi(s1v) || diff>=0);
+    #undef Ds1
+    #undef Ds2
+  // (no default)
+    }  // depending on comparison operator
+  return false;  // (we never get here)
+  }  // end   modi__cmp()
+
+#define modi__pairM 1000  // maximum number of key-val-pairs
+#define modi__pairkM 100  // maximum length of key or val;
+#define modi__pairtM 3  // maximum number of modification types;
+  // these modification types are defined as follows:
+  //  0: modify node     tag;
+  //  1: modify way      tag;
+  //  2: modify relation tag;
+struct modi__pair_struct {
+  // key/val pair for the include filter
+  char k[modi__pairkM+8];  // key to compare;
+    // [0]==0 && [1]==0: same key as previous key in list;
+  char v[modi__pairkM+8];  // value to the key in .k[];
+    // the first byte represents a comparison operator,
+    // see parameter s2[]in modi__cmp() for details;
+    // [0]==0 && [1]==0: any value will be accepted;
+  char nk[modi__pairkM+2];  // new key
+  char nv[modi__pairkM+2];  // new value
+  bool add;  // new key/val pair shall be added instead of replacing
+    // the old key/val pair
+  } __attribute__((__packed__));
+typedef struct modi__pair_struct modi__pair_t;
+static modi__pair_t modi__pair[modi__pairtM][modi__pairM+2]=
+  {{{{0},{0},{0},{0}}}};
+static modi__pair_t* modi__paire[modi__pairtM]=
+  { &modi__pair[0][0],&modi__pair[1][0],&modi__pair[2][0] };
+static modi__pair_t* modi__pairee[modi__pairtM]=
+  { &modi__pair[0][modi__pairM],&modi__pair[1][modi__pairM],
+    &modi__pair[2][modi__pairM] };
+
+//------------------------------------------------------------
+
+static inline void modi_cpy(char *dest, const char *src,
+    size_t len,int op) {
+  // similar as strmpy(), but remove every initial '\\' character;
+  // len: length of the source string - without terminating zero;
+  // op: comparison operator;
+  //         2: '='
+  //         4: '<'
+  //         5: '>='
+  //         6: '>'
+  //         7: '<='
+  // return: dest[0]: comparison operator; additional possible values:
+  //         0: '=', and there are wildcards coded in dest[1]:
+  //                 dest[1]==1: wildcard at start;
+  //                 dest[1]==2: wildcard at end;
+  //                 dest[1]==3: wildcard at both, start and end;
+  //         1: '!=', and there are wildcards coded in dest[1];
+  //        10: '=', numeric
+  //        11: '!=', numeric
+  //        12: '<', numeric
+  //        13: '>=', numeric
+  //        14: '>', numeric
+  //        15: '<=', numeric
+  int wc;  // wildcard indicator, see modi__cmp()
+
+  if(op<0) {  // unknown operator
+    WARNv("unknown comparison at: %.80s",src)
+    op= 2;  // assume '='
+    }
+  if(len>(modi__pairkM)) {
+    len= modi__pairkM;  // delimit value length
+    WARNv("modification argument too long: %.*s",modi__pairkM,src)
+    }
+  wc= 0;  // (default)
+  if(len>=2 && src[0]=='*') {  // wildcard at start
+    wc|= 1;
+    src++; len--;
+    }
+  if((len>=2 && src[len-1]=='*' && src[len-2]!='\\') ||
+      (len==1 && src[len-1]=='*')) {
+      // wildcard at end
+    wc|= 2;
+    len--;
+    }
+  if(wc==0) {  // no wildcard(s)
+    const char* v;
+
+    v= src;
+    if(*v=='-') v++;  // jump over sign
+    if(isdig(*v))  // numeric value
+      op+= 8;
+    dest[0]= op;
+    modi__stresccpy(dest+1,src,len);  // store this value
+    }  // no wildcard(s)
+  else {  // wildcard(s)
+    dest[0]= op&1;
+    dest[1]= wc;
+    modi__stresccpy(dest+2,src,len);  // store this value
+    }  // wildcard(s)
+  }  // end   modi_cpy()
+
+static bool modi_active= false;
+  // there is at least one modify criteria active;
+  // may be read by everyone but written only by this module;
+static bool modi_activetype[modi__pairtM]= {false,false,false};
+  // the related modify list has at least one element;
+  // may be read by everyone but written only by this module;
+
+static void modi_ini() {
+  // initialize this mudule;
+  int i;
+
+  modi_active= false;
+  for(i= 0; i<modi__pairtM; i++) {
+    modi__paire[i]= &modi__pair[i][0];
+    modi__pairee[i]= &modi__pair[i][modi__pairM];
+    modi_activetype[i]= false;
+    }
+  }  // modi_ini()
+
+static void modi_parse(int ftype,const char* arg) {
+  // interprets a command line argument and stores modification
+  // information;
+  // ftype: object type; see explanation at modi__pairtM;
+  // arg[]: modification information; e.g.:
+  //        "amenity=fire_hydrant to emergency=fire_hydrant"
+  modi__pair_t*fe,*fee;
+  const char* pk,*pv,*pe;  // pointers in parameter for key/val pairs;
+    // pk: key; pv: val; pe: end of val;
+  int len;  // string length
+  int op;  // operator, see modi__cmp()
+
+  fe= modi__paire[ftype];
+  fee= modi__pairee[ftype];
+  if(loglevel>0)
+    PINFOv("Modify: %s tags:",ONAME(ftype%3))
+  pk= arg;
+  while(*pk==' ') pk++;  // jump over spaces
+
+  while(pk!=NULL && fe<fee) {  // for every key/val pair
+    while(*pk==' ') pk++;  // jump over (additional) spaces
+    if(*pk==0)
+  break;
+    pe= pk;
+    while((*pe!=' ' || pe[-1]=='\\') && *pe!=0) pe++;
+      // get end of this pair
+    len= pe-pk;  // length of this argument
+    pv= pk;
+    while(((*pv!='=' && *pv!='<' && *pv!='>' &&
+        (*pv!='!' || pv[1]!='=')) ||
+        (pv>pk && pv[-1]=='\\')) && pv<pe) pv++;
+      // find operator =, <, >, !=
+    if(pv>=pe-1) pv= pe;  // there was no operator in this pair
+    len= pv-pk;  // length of this key
+    if(len>(modi__pairkM)) {
+      len= modi__pairkM;  // delimit key length
+      WARNv("modification key too long: %.*s",modi__pairkM,pk)
+      }
+    op= -1;  // 'unknown operator' (default)
+    if(pv>=pe) {  // there is a key but no value
+      if(len>0 && pk[len-1]=='=') len--;
+      modi_cpy(fe->k,pk,len,2);  // store this key, op='='
+      memset(fe->v,0,3);  // store empty value
+      }
+    else {  // key and value
+      if(len==0)  // no key given
+        memset(fe->k,0,3);  // store empty key,
+      else
+        modi_cpy(fe->k,pk,len,2);  // store this key, op='='
+      if(*pv=='=') op= 2;
+      else if(*pv=='!' && pv[1]=='=') op= 3;
+      else if(*pv=='<' && pv[1]!='=') op= 4;
+      else if(*pv=='>' && pv[1]=='=') op= 5;
+      else if(*pv=='>' && pv[1]!='=') op= 6;
+      else if(*pv=='<' && pv[1]=='=') op= 7;
+      if(op<0) {  // unknown operator
+        WARNv("unknown comparison at: %.80s",pv)
+        op= 2;  // assume '='
+        }
+      pv++;  // jump over operator
+      if(pv<pe && *pv=='=') pv++;
+        // jump over second character of a two-character operator
+      len= pe-pv;  // length of this value
+      modi_cpy(fe->v,pv,len,op);  // store this value
+      }  // key and value
+    // jump over ' to ' phrase
+    while(*pe==' ') pe++;  // jump over spaces
+    if((fe->add= strzcmp(pe,"add ")==0)) pe+= 4;
+    else if(strzcmp(pe,"to ")==0) pe+= 3;
+    // get destination key/val
+    pk= pe;  // jump to next key/val pair in parameter list
+    while(*pk==' ') pk++;  // jump over (additional) spaces
+    pe= pk;
+    while((*pe!=' ' || pe[-1]=='\\') && *pe!=0) pe++;
+      // get end of this destination pair
+    len= pe-pk;  // length of this argument
+    pv= pk;
+    while((*pv!='=' || (pv>pk && pv[-1]=='\\')) && pv<pe) pv++;
+      // find operator '='
+    if(pv>=pe-1) pv= pe;  // there was no operator in this pair
+    len= pv-pk;  // length of this key
+    if(len>(modi__pairkM)) {
+      len= modi__pairkM;  // delimit key length
+      WARNv("modification key too long: %.*s",modi__pairkM,pk)
+      }
+    if(pv>=pe) {  // there is a destination key but no value
+      if(len>0 && pk[len-1]=='=') len--;
+      modi__stresccpy(fe->nk,pk,len);  // store this key
+      fe->nv[0]= 0;  // store empty value
+      }
+    else {  // destination key and value
+      if(len==0)  // no key given
+        modi__stresccpy(fe->nk,fe->k[0]<=1? fe->k+2: fe->k+1,
+          modi__pairkM);
+          // store source key as destination key
+      else
+        modi__stresccpy(fe->nk,pk,len);  // store this key
+      pv++;  // jump over equation operator
+      if(pv<pe && *pv=='=') pv++;
+        // jump over second character of a two-character operator
+      len= pe-pv;  // length of this value
+      if(len==0)  // no value given
+        modi__stresccpy(fe->nv,fe->v[0]<=1? fe->v+2: fe->v+1,
+          modi__pairkM);
+          // store source value as destination value
+      else
+        modi__stresccpy(fe->nv,pv,len);  // store this value
+      }  // destination key and value
+    if(loglevel>0) {
+      static const char* ops[]= { "?",
+        "=","!=","=","!=","<",">=",">","<=",
+        "?","?","=(numeric)","!=(numeric)",
+        "<(numeric)",">=(numeric)",">(numeric)","<=(numeric)" };
+      PINFOv("Modify:     %s\"%.80s\"%s %s %s\"%.80s\"%s",
+        fe->k[0]<=1 && (fe->k[1] & 1)? "*": "",
+        *(int16_t*)(fe->k)==0? "(last key)":
+          fe->k[0]>=2? fe->k+1: fe->k+2,
+        fe->k[0]<=1 && (fe->k[1] & 2)? "*": "",
+        ops[fe->v[0]+1],
+        fe->v[0]<=1 && (fe->v[1] & 1)? "*": "",
+        *(int16_t*)(fe->v)==0? "(anything)":
+          fe->v[0]>=2? fe->v+1: fe->v+2,
+        fe->v[0]<=1 && (fe->v[1] & 2)? "*": "");
+      }
+    fe++;  // next pair in key/val table
+    pk= pe;  // jump to next key/val pair in parameter list
+    }  // end   for every key/val pair
+  if(fe>=fee)
+    WARN("too many modification parameters.")
+  modi__paire[ftype]= fe;
+  modi_active= true;
+  modi_activetype[ftype]= true;
+  }  // end   modi_parse()
+
+static char* modi_check_key= "-",*modi_check_val= "-";
+  static bool modi_check_add= false;
+  // return values of procedure modi_check();
+  // the values are valid only if the previous call to modi_check()
+  // has returned 'true';
+
+static inline bool modi_check(int otype,char* key,char* val) {
+  // check if OSM object matches modification criteria;
+  // otype: 0: node; 1: way; 2: relation;
+  // key,val: key and value;
+  // return: given key/val pair matches modification criteria;
+  //         modi_check_key,modi_check_val: destination key/val;
+  //         modi_check_add: the destination key/val shall be added
+  //                         instead of replacing the old key/val pair;
+  modi__pair_t* fp,*fe;
+
+  fp= modi__pair[otype]; fe= modi__paire[otype];
+  while(fp<fe) {  // for every key/val pair in filter
+    if(*(int16_t*)(fp->k)==0) {  // no key given
+      if(modi__cmp(val,fp->v))  // just compare the value
+        goto modi_check_found;
+      }
+    else {  // key given
+      if(modi__cmp(key,fp->k) &&
+          (*(int16_t*)(fp->k)==0 || modi__cmp(val,fp->v)))
+          // compare key and value (if any)
+      goto modi_check_found;
+      }
+    fp++;
+    }  // for every key/val pair in filter
+  return false;
+modi_check_found:
+  if(fp->nk[0]!=0)  // there is a destination key
+    modi_check_key= fp->nk;  // take that destination key
+  else
+    modi_check_key= key;
+      // take source key instead
+  if(fp->nv[0]!=0)  // there is a destination value
+    modi_check_val= fp->nv;  // take that destination value
+  else
+    modi_check_val= val;
+      // take source value instead
+  modi_check_add= fp->add;  // publish key/val add request
+  return true;
+  }  // end   modi_check()
+
+#define modi_CHECK(ot,k,v) \
+  (modi_active && modi_activetype[ot] && modi_check(ot,k,v))
+  // prevents procedure call in case there are no modifications applied
+
+//------------------------------------------------------------
+// end   Module modi_   OSM tag modification module
 //------------------------------------------------------------
 
 
@@ -5159,7 +5887,7 @@ static void oo__close() {
     if(!oo__ifp->endoffile  && oo_ifn>0)  // missing logical end of file
       fprintf(stderr,"osmfilter Warning: "
         "unexpected end of input file: %.80s\n",oo__ifp->filename);
-    read_close(oo__ifp->ri);
+    read_close(); //oo__ifp->ri);
     oo__ifp->ri= NULL;
     oo_ifn--;
     }
@@ -5652,10 +6380,12 @@ return 18;
       }  // end   xml
 
     // care about possible array overflows
-    if(refide>refidee)
-      WARNv("way %"PRIi64" has too many noderefs.",id)
-    if(refide>refidee)
-      WARNv("relation %"PRIi64" has too many refs.",id)
+    if(refide>=refidee) {
+      if(otype==1)
+        WARNv("way %"PRIi64" has too many noderefs.",id)
+      else
+        WARNv("relation %"PRIi64" has too many refs.",id)
+      }
     if(keye>=keyee)
       WARNv("%s %"PRIi64" has too many key/val pairs.",
         ONAME(otype),id)
@@ -5779,8 +6509,14 @@ return 18;
           hisver,histime,hiscset,hisuid,hisuser,lon,lat);
         keyp= key; valp= val;
         while(keyp<keye) {  // for all key/val pairs of this object
-          if(!fil_activeo[otype] || fil_check2(otype,*keyp,*valp))
-            wo_keyval(*keyp,*valp);
+          if(!fil_activeo[otype] || fil_check2(otype,*keyp,*valp)) {
+            if(modi_CHECK(otype,*keyp,*valp)) {
+              if(modi_check_add) wo_keyval(*keyp,*valp);
+              wo_keyval(modi_check_key,modi_check_val);
+              }
+            else
+              wo_keyval(*keyp,*valp);
+            }
           keyp++; valp++;
           }
         }  // end   not to drop
@@ -5793,8 +6529,14 @@ return 18;
           wo_noderef(*refidp++);
         keyp= key; valp= val;
         while(keyp<keye) {  // for all key/val pairs of this object
-          if(!fil_activeo[otype] || fil_check2(otype,*keyp,*valp))
+          if(!fil_activeo[otype] || fil_check2(otype,*keyp,*valp)) {
+            if(modi_CHECK(otype,*keyp,*valp)) {
+              if(modi_check_add) wo_keyval(*keyp,*valp);
+              wo_keyval(modi_check_key,modi_check_val);
+              }
+            else
             wo_keyval(*keyp,*valp);
+            }
           keyp++; valp++;
           }
         }  // end   not ways to drop
@@ -5807,8 +6549,14 @@ return 18;
           wo_ref(*refidp++,*reftypep++,*refrolep++);
         keyp= key; valp= val;
         while(keyp<keye) {  // for all key/val pairs of this object
-          if(!fil_activeo[otype] || fil_check2(otype,*keyp,*valp))
+          if(!fil_activeo[otype] || fil_check2(otype,*keyp,*valp)) {
+            if(modi_CHECK(otype,*keyp,*valp)) {
+              if(modi_check_add) wo_keyval(*keyp,*valp);
+              wo_keyval(modi_check_key,modi_check_val);
+              }
+            else
             wo_keyval(*keyp,*valp);
+            }
           keyp++; valp++;
           }
         }  // end   not relations to drop
@@ -5864,6 +6612,7 @@ int main(int argc,const char** argv) {
   // initializations
   h_n= h_w= h_r= 0;
   fil_ini();
+  modi_ini();
   #if __WIN32__
     setmode(fileno(stdout),O_BINARY);
     setmode(fileno(stdin),O_BINARY);
@@ -6160,6 +6909,17 @@ return 0;
     D(--drop-node-way-tags=,F(9)F(10))
     D(--drop-node-relation-tags=,F(9)F(11))
     D(--drop-way-relation-tags=,F(10)F(11))
+    #undef D
+    #undef F
+    #define F(t) modi_parse(t,a+l);
+    #define D(p,f) if((l= strzlcmp(a,#p))>0) { f continue; }
+    D(--modify-tags=,F(0)F(1)F(2))
+    D(--modify-node-tags=,F(0))
+    D(--modify-way-tags=,F(1))
+    D(--modify-relation-tags=,F(2))
+    D(--modify-node-way-tags=,F(0)F(1))
+    D(--modify-node-relation-tags=,F(0)F(2))
+    D(--modify-way-relation-tags=,F(1)F(2))
     #undef D
     #undef F
     if(a[0]=='-') {
