@@ -1,5 +1,5 @@
-// osmfilter 2017-03-30 19:00
-#define VERSION "1.4.2"
+// osmfilter 2017-09-22 14:00
+#define VERSION "1.4.3"
 //
 // compile this file:
 // gcc osmfilter.c -O3 -o osmfilter
@@ -2773,7 +2773,7 @@ static inline bool fil_check0(int otype,
         if(fil__cmp(*keyp,fp->k)) {  // right key
           gotkey= true;
           v= *valp;
-          if(*(int16_t*)(fp->k)==0 || fil__cmp(v,fp->v)) {
+          if(*(int16_t*)(fp->v)==0 || fil__cmp(v,fp->v)) {
             // right value
             result= true;
       break;
@@ -2889,7 +2889,7 @@ static inline bool fil_check1(int otype,
       while(keyp<keye) {  // for all key/val pairs of this object
         if(fil__cmp(*keyp,fp->k)) {  // right key
           v= *valp;
-          if(*(int16_t*)(fp->k)==0 || fil__cmp(v,fp->v)) {
+          if(*(int16_t*)(fp->v)==0 || fil__cmp(v,fp->v)) {
             // right value
             result= true;
       break;
@@ -6714,7 +6714,7 @@ return 0;
       global_dropauthor= true;
   continue;  // take next parameter
       }
-    if(strzcmp(argv[0],"--drop-ver")==0) {
+    if(strzcmp(a,"--drop-ver")==0) {
         // user does not want version number in standard output
       global_dropauthor= true;
       global_dropversion= true;

@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+wget -N http://m.m.i24.cc/osmupdate.c
+wget -N http://m.m.i24.cc/osmconvert.c
+wget -N http://m.m.i24.cc/osmfilter.c
+wget -N http://m.m.i24.cc/pbftoosm.c
+wget -N http://m.m.i24.cc/osmchange.c
+wget -N http://m.m.i24.cc/osmrelpoly.c
+wget -N http://m.m.i24.cc/osmassignpoly.c
+wget -N http://m.m.i24.cc/osmgeobase.c
+wget -N http://m.m.i24.cc/osmposition.c
