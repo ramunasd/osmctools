@@ -36,3 +36,9 @@ This package contains latest version of all tools without any modifications or c
   autoreconf --install
   make install
 ```
+
+## Docker
+
+For those using the Docker workflow, there is a Dockerfile provided to build the tools.
+
+There is an official [Automated Build](https://docs.docker.com/docker-hub/builds/) from source on Docker Hub at [ramunasd/osmctools](https://hub.docker.com/r/ramunasd/osmctools/), automatically built on each commit.
