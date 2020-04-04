@@ -1,10 +1,10 @@
-// osmconvert 2017-06-18 21:30
-#define VERSION "0.8.8"
+// osmconvert 2020-03-31 14:20
+#define VERSION "0.8.11"
 //
 // compile this file:
 // gcc osmconvert.c -lz -O3 -o osmconvert
 //
-// (c) 2011..2017 Markus Weber, Nuernberg
+// (c) 2011..2020 Markus Weber, Nuernberg
 // Richard Russo contributed the initiative to --add-bbox-tags option
 //
 // This program is free software; you can redistribute it and/or
@@ -387,15 +387,15 @@ const char* helptext=
 "Tuning\n"
 "\n"
 "To speed-up the process, the program uses some main memory for a\n"
-"hash table. By default, it uses 900 MB for storing a flag for every\n"
-"possible node, 90 for the way flags, and 10 relation flags.\n"
-"Every byte holds the flags for 8 ID numbers, i.e., in 900 MB the\n"
-"program can store 7200 million flags. As there are less than 3200\n"
-"million IDs for nodes at present (Oct 2014), 400 MB would suffice.\n"
-"So, for example, you can decrease the hash sizes to e.g. 400, 50 and\n"
-"2 MB using this option:\n"
+"hash table. By default, it uses 1800 MB for storing a flag for every\n"
+"possible node, 180 for the way flags, and 20 relation flags.\n"
+"Every byte holds the flags for 8 ID numbers, i.e., in 1800 MB the\n"
+"program can store 14400 million flags. As there are less than 7400\n"
+"million IDs for nodes at present (Mar 2020), 925 MB would suffice.\n"
+"So, for example, you can decrease the hash sizes to e.g. 1000, 120\n"
+"and 4 MB using this option:\n"
 "\n"
-"  --hash-memory=400-50-2\n"
+"  --hash-memory=1000-120-4\n"
 "\n"
 "But keep in mind that the OSM database is continuously expanding. For\n"
 "this reason the program-own default value is higher than shown in the\n"
@@ -404,10 +404,10 @@ const char* helptext=
 "amount of memory as a sum, and the program will divide it by itself.\n"
 "For example:\n"
 "\n"
-"  --hash-memory=1500\n"
+"  --hash-memory=3000\n"
 "\n"
-"These 1500 MB will be split in three parts: 1350 for nodes, 135 for\n"
-"ways, and 15 for relations.\n"
+"These 3000 MB will be split in three parts: 2700 for nodes, 270 for\n"
+"ways, and 30 for relations.\n"
 "\n"
 "Because we are taking hashes, it is not necessary to provide all the\n"
 "suggested memory; the program will operate with less hash memory too.\n"
@@ -456,7 +456,7 @@ const char* helptext=
 "loss. Do not use the program in productive or commercial systems.\n"
 "\n"
 "There is NO WARRANTY, to the extent permitted by law.\n"
-"Please send any bug reports to markus.weber@gmx.com\n\n";
+"Please send any bug reports to marqqs@gmx.eu\n\n";
 
 #define _FILE_OFFSET_BITS 64
 #include <zlib.h>
@@ -1621,7 +1621,7 @@ static int hash_ini(int n,int w,int r) {
     return 0;  // ignore the call of this procedure
   // check parameters and store the values
   #define D(x,o) if(x<1) x= 1; else if(x>4000) x= 4000; \
-    hash__max[o]= x*(1024*1024);
+    hash__max[o]= x*(1024u*1024u);
   D(n,0u) D(w,1u) D(r,2u)
   #undef D
   // allocate memory for each hash table
@@ -11523,8 +11523,8 @@ return 26;
           keyp= key; valp= val;
           while(keyp<keye) {  // for all key/val pairs of this object
             if(modi_CHECK(otype,*keyp,*valp)) {
-              if(modi_check_add) wo_node_keyval(*keyp++,*valp++);
-              else keyp++; valp++;
+              if(modi_check_add) wo_node_keyval(*keyp,*valp);
+              keyp++; valp++;
               wo_node_keyval(modi_check_key,modi_check_val);
               }
             else
@@ -11666,8 +11666,8 @@ return 26;
                 while(keyp<keye) {
                     // for all key/val pairs of this object
                   if(modi_CHECK(otype,*keyp,*valp)) {
-                    if(modi_check_add) wo_node_keyval(*keyp++,*valp++);
-                    else keyp++; valp++;
+                    if(modi_check_add) wo_node_keyval(*keyp,*valp);
+                    keyp++; valp++;
                     wo_node_keyval(modi_check_key,modi_check_val);
                     }
                   else
@@ -11691,8 +11691,8 @@ return 26;
               while(keyp<keye) {
                   // for all key/val pairs of this object
                 if(modi_CHECK(otype,*keyp,*valp)) {
-                  if(modi_check_add) wo_wayrel_keyval(*keyp++,*valp++);
-                  else keyp++; valp++;
+                  if(modi_check_add) wo_wayrel_keyval(*keyp,*valp);
+                  keyp++; valp++;
                   wo_wayrel_keyval(modi_check_key,modi_check_val);
                   }
                 else
@@ -11714,8 +11714,8 @@ return 26;
             while(keyp<keye) {
                 // for all key/val pairs of this object
               if(modi_CHECK(otype,*keyp,*valp)) {
-                if(modi_check_add) wo_wayrel_keyval(*keyp++,*valp++);
-                else keyp++; valp++;
+                if(modi_check_add) wo_wayrel_keyval(*keyp,*valp);
+                keyp++; valp++;
                 wo_wayrel_keyval(modi_check_key,modi_check_val);
                 }
               else
@@ -11838,8 +11838,8 @@ return 26;
               while(keyp<keye) {
                   // for all key/val pairs of this object
                 if(modi_CHECK(otype,*keyp,*valp)) {
-                  if(modi_check_add) wo_node_keyval(*keyp++,*valp++);
-                  else keyp++; valp++;
+                  if(modi_check_add) wo_node_keyval(*keyp,*valp);
+                  keyp++; valp++;
                   wo_node_keyval(modi_check_key,modi_check_val);
                   }
                 else
@@ -11897,8 +11897,8 @@ return 26;
             while(keyp<keye) {
                 // for all key/val pairs of this object
               if(modi_CHECK(otype,*keyp,*valp)) {
-                if(modi_check_add) wo_wayrel_keyval(*keyp++,*valp++);
-                else keyp++; valp++;
+                if(modi_check_add) wo_wayrel_keyval(*keyp,*valp);
+                keyp++; valp++;
                 wo_wayrel_keyval(modi_check_key,modi_check_val);
                 }
               else
@@ -13145,7 +13145,9 @@ return 3;
         "-b=, -B=, --drop-brokenrefs must not be combined with --diff");
 return 6;
       }
-    if(h_n==0) h_n= 1000;  // use standard value if not set otherwise
+    if(h_n==0) { // use standard values if not set otherwise
+      h_n= 1800; h_w= 180; h_r= 20;
+      }
     if(h_w==0 && h_r==0) {
         // user chose simple form for hash memory value
       // take the one given value as reference and determine the 
