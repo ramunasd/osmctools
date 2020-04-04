@@ -1,5 +1,5 @@
-// osmfilter 2020-01-22 10:50
-#define VERSION "1.4.5"
+// osmfilter 2020-03-31 14:50
+#define VERSION "1.4.6"
 //
 // compile this file:
 // gcc osmfilter.c -O3 -o osmfilter
@@ -331,15 +331,15 @@ const char* helptext=
 "Tuning\n"
 "\n"
 "To speed-up the process, the program uses some main memory for a\n"
-"hash table. By default, it uses 1200 MB for storing a flag for every\n"
-"possible node, 150 for the way flags, and 10 relation flags.\n"
-"Every byte holds the flags for 8 ID numbers, i.e., in 1200 MB the\n"
-"program can store 9600 million flags. As there are less than 5700\n"
-"million IDs for nodes at present (May 2018), 720 MB would suffice.\n"
-"So, for example, you can decrease the hash sizes to e.g. 720, 80 and\n"
-"2 MB using this option:\n"
+"hash table. By default, it uses 1800 MB for storing a flag for every\n"
+"possible node, 180 for the way flags, and 20 relation flags.\n"
+"Every byte holds the flags for 8 ID numbers, i.e., in 1800 MB the\n"
+"program can store 14400 million flags. As there are less than 7400\n"
+"million IDs for nodes at present (Mar 2020), 925 MB would suffice.\n"
+"So, for example, you can decrease the hash sizes to e.g. 1000, 120\n"
+"and 4 MB using this option:\n"
 "\n"
-"  --hash-memory=720-80-2\n"
+"  --hash-memory=1000-120-4\n"
 "\n"
 "But keep in mind that the OSM database is continuously expanding. For\n"
 "this reason the program-own default value is higher than shown in the\n"
@@ -348,10 +348,10 @@ const char* helptext=
 "amount of memory as a sum, and the program will divide it by itself.\n"
 "For example:\n"
 "\n"
-"  --hash-memory=1500\n"
+"  --hash-memory=3000\n"
 "\n"
-"These 1500 MB will be split in three parts: 1350 for nodes, 135 for\n"
-"ways, and 15 for relations.\n"
+"These 3000 MB will be split in three parts: 2700 for nodes, 270 for\n"
+"ways, and 30 for relations.\n"
 "\n"
 "Because we are taking hashes, it is not necessary to provide all the\n"
 "suggested memory; the program will operate with less hash memory too.\n"
@@ -6983,7 +6983,7 @@ return 3;
     int r;
 
     if(h_n==0) { // use standard values if not set otherwise
-      h_n= 1200; h_w= 150; h_r= 10;
+      h_n= 1800; h_w= 180; h_r= 20;
       }
     if(h_w==0 && h_r==0) {
         // user chose simple form for hash memory value
