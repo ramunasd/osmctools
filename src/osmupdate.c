@@ -1,10 +1,10 @@
-// osmupdate 2017-02-26 16:40
-#define VERSION "0.4.4"
+// osmupdate 2018-05-27 12:00
+#define VERSION "0.4.5"
 //
 // compile this file:
 // gcc osmupdate.c -o osmupdate
 //
-// (c) 2011..2017 Markus Weber, Nuernberg
+// (c) 2011..2018 Markus Weber, Nuernberg
 //
 // This program is free software; you can redistribute it and/or
 // modify it under the terms of the GNU Affero General Public License
@@ -111,9 +111,9 @@ const char* helptext=
 "        changefiles in one run. This ability increases merging speed.\n"
 "        Unfortunately, every changefile consumes about 200 MB of main\n"
 "        memory while being processed. For this reason, the number of\n"
-"        parallely processable changefiles is limited.\n"
+"        parallelly processable changefiles is limited.\n"
 "        Use this commandline argument to determine the maximum number\n"
-"        of parallely processed changefiles. The default value is 7.\n"
+"        of parallelly processed changefiles. The default value is 7.\n"
 "\n"
 "-t=TEMPPATH\n"
 "--tempfiles=TEMPPATH\n"
@@ -165,7 +165,7 @@ const char* helptext=
 "loss. Do not use the program in productive or commercial systems.\n"
 "\n"
 "There is NO WARRANTY, to the extent permitted by law.\n"
-"Please send any bug reports to markus.weber@gmx.com\n\n";
+"Please send any bug reports to marqqs@gmx.eu\n\n";
 
 #define _FILE_OFFSET_BITS 64
 #include <inttypes.h>
@@ -511,11 +511,11 @@ static char global_osmconvert_arguments[2000]= "";
   // general command line arguments for osmconvert;
 #define max_number_of_changefiles_in_cache 100
 static int global_max_merge= 7;
-  // maximum number of parallely processed changefiles
+  // maximum number of parallelly processed changefiles
 static const char* global_gzip_parameters= "";
   // parameters for gzip compression
 static char global_base_url[400]=
-  "http://planet.openstreetmap.org/replication";
+  "https://planet.openstreetmap.org/replication";
 static char global_base_url_suffix[100]="";
   // for old replication URL, to get "day-replication" instead of "day"
 
@@ -1199,7 +1199,7 @@ return 0;
   continue;  // take next parameter
       }
     if(strzcmp(a,"--max-merge=")==0) {
-        // maximum number of parallely processed changefiles
+        // maximum number of parallelly processed changefiles
       global_max_merge= strtouint32(a+12);
       if(global_max_merge<2) {
         global_max_merge= 2;
@@ -1280,6 +1280,8 @@ return 0;
 return 1;
         }
       if(strcmp(a,"--complete-ways")==0 ||
+          strcmp(a,"--complete-multipolygons")==0 ||
+          strcmp(a,"--complete-boundaries")==0 ||
           strcmp(a,"--complex-ways")==0 ||
           strcmp(a,"--drop-brokenrefs")==0 ||
           strcmp(a,"--drop-broken-refs")==0) {
