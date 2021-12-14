@@ -552,6 +552,7 @@ static void shell_command(const char* command,char* result) {
   char* result_p;
   int maxlen;
   int r;
+  int exit_status;
 
   if(loglevel>=2)
     PINFOv("Executing shell command:\n%s",command)
@@ -573,8 +574,11 @@ exit(errno);  // (thanks to Ben Konrath)
     maxlen-= r;
     }
   *result_p= 0;
-  if(pclose(fp)==-1)
+  exit_status = pclose(fp);
+  if(exit_status==-1)
 exit(errno);  // (thanks to Ben Konrath)
+  if(exit_status>0)
+exit(exit_status);
   if(loglevel>=2)
     PINFOv("Got shell command result:\n%s",result)
   }  // end   shell_command()
