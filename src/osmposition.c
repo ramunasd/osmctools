@@ -1159,7 +1159,7 @@ static bool geoc_main() {
 
     // determine city indexes for each street index
     if(sp==NULL) {  // no street name in input line
-      if(dat_usedfirst_city!=0) {  // found at least one city
+      if(aifirst!=0) {  // found at least one city
         // enter main address datasets for the city/cities
         // into result list
         for(ci= dat_indexrangefirst_city;ci<=dat_indexrangelast_city;
@@ -1638,7 +1638,7 @@ static int T(dat__strtypeid,I)= 0;  // data type id;
 // memory area for strings
 static char* T(dat__str,I)= NULL;  // string memory area
 static char* T(dat__stre,I)= NULL;  // logical end
-static uint_fast32_t T(dat__strn,I)= NULL;  // number of strings
+static uint_fast32_t T(dat__strn,I)= 0;  // number of strings
 
 // memory area for used-by references
 typedef uint32_t dat__used_t;
@@ -1649,7 +1649,7 @@ static dat__used_t* T(dat__usede,I)= NULL;  // logical end
 typedef struct dat__idx_struct dat__idx_t;
 static dat__idx_t* T(dat__idx,I)= NULL;  // index memory area
 static dat__idx_t* T(dat__idxe,I)= NULL;  // logical end
-static uint_fast32_t T(dat__idxn,I)= NULL;  // number of strings
+static uint_fast32_t T(dat__idxn,I)= 0;  // number of strings
 
 static void T(dat__end,I)() {
   // terminate the services of this instance;
@@ -2302,4 +2302,3 @@ return up+i;
 //------------------------------------------------------------
 
 #endif  // procedure templates
-

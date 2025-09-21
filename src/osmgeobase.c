@@ -1819,7 +1819,7 @@ static void oo__close() {
   if(oo__ifp!=NULL && oo__ifp->ri!=NULL) {
     if(!oo__ifp->endoffile  && oo_ifn>0)  // missing logical end of file
       PWARNv("unexpected end of input file: %.80s",oo__ifp->filename)
-    read_close(oo__ifp->ri);
+    read_close();
     oo__ifp->ri= NULL;
     oo_ifn--;
     }
@@ -2446,7 +2446,7 @@ typedef struct data__str_struct data__str_t;
 static data__strref_t* data__strref= NULL;  // string references
 static data__strref_t* data__strrefe= NULL;  // logical end
 static data__strref_t* data__strrefee= NULL;  // physical end
-static uint_fast32_t data__strrefn= NULL;  // number of refs
+static uint_fast32_t data__strrefn= 0;  // number of refs
 
 // container for address data
 struct data__addr_struct {  // (length 32 Bytes)
@@ -2731,7 +2731,7 @@ static int T(data__strtypeid,I)= 0;  // data type id;
 // memory area for strings and their used-by references
 static data__str_t* T(data__str,I)= NULL;  // string memory area
 static data__str_t* T(data__stre,I)= NULL;  // logical end
-static uint_fast32_t T(data__strn,I)= NULL;  // number of strings
+static uint_fast32_t T(data__strn,I)= 0;  // number of strings
 
 static void T(data__addused,I)(uint32_t index,uint32_t addrindex) {
   // add used-by information to a string;
@@ -3619,4 +3619,3 @@ return 0;
 //------------------------------------------------------------
 // end   Module data_   osm data module
 //------------------------------------------------------------
-

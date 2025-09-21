@@ -19,6 +19,7 @@
 // Other licenses are available on request; please ask the author.
 
 #define MAXLOGLEVEL 2
+#define WGET_MAX_RETRIES 3
 const char* helptext=
 "\nosmupdate " VERSION "\n"
 "\n"
@@ -187,6 +188,7 @@ typedef unsigned int uint;
 static int loglevel= 0;  // logging to stderr;
   // 0: no logging; 1: small logging; 2: normal logging;
   // 3: extended logging;
+static int shell_command_exit_status= 0;
 #define DP(f) fprintf(stderr,"Debug: " #f "\n");
 #define DPv(f,...) fprintf(stderr,"Debug: " #f "\n",__VA_ARGS__);
 #define DPM(f,p,m) { byte* pp; int i,mm; static int msgn= 3; \
@@ -573,7 +575,8 @@ exit(errno);  // (thanks to Ben Konrath)
     maxlen-= r;
     }
   *result_p= 0;
-  if(pclose(fp)==-1)
+  shell_command_exit_status= pclose(fp);
+  if(shell_command_exit_status==-1)
 exit(errno);  // (thanks to Ben Konrath)
   if(loglevel>=2)
     PINFOv("Got shell command result:\n%s",result)
@@ -653,6 +656,8 @@ static int64_t get_newest_changefile_timestamp(
   char* command_e= command+sizeof(command);
   char result[1000];
   int64_t changefile_timestamp;
+  bool download_ok= false;
+  int attempt;
 
   #if __WIN32__
     static char newest_timestamp_file_name[400];
@@ -693,16 +698,27 @@ return 0;
   #else
     stecpy(&command_p,command_e," -O - 2>&1");
   #endif
-  shell_command(command,result);
-  if(firstrun) {  // first run
-    firstrun= false;
-    if(result[0]!='#' && (result[0]<'1' || result[0]>'2') && (
-        strstr(result,"not found")!=NULL ||
-        strstr(result,"cannot find")!=NULL)) {  // command not found
-      PERR("Please install program wget first.")
+  for(attempt= 0; attempt<WGET_MAX_RETRIES && !download_ok; attempt++) {
+    shell_command(command,result);
+    if(firstrun) {  // first run
+      firstrun= false;
+      if(result[0]!='#' && (result[0]<'1' || result[0]>'2') && (
+          strstr(result,"not found")!=NULL ||
+          strstr(result,"cannot find")!=NULL)) {  // command not found
+        PERR("Please install program wget first.")
 exit(1);
-      }  // command not found
-    }  // first run
+        }  // command not found
+      }
+    if(shell_command_exit_status==0)
+      download_ok= true;
+    else if(loglevel>0 && attempt+1<WGET_MAX_RETRIES)
+      PINFOv("Retrying wget command (%i/%i).",attempt+2,WGET_MAX_RETRIES)
+    }  // retry loop
+  if(!download_ok) {
+    PERRv("Could not download newest %s state after %i attempts.",
+      CFTNAME(changefile_type),WGET_MAX_RETRIES)
+exit(1);
+    }
   #if __WIN32__
     result[0]= 0;
     /* copy tempfile contents to result[] */ {
@@ -785,6 +801,7 @@ static int64_t get_changefile_timestamp(
   // download the timestamp into a cache file
   if(file_length(timestamp_cachefile_name)<10) {
       // timestamp has not been downloaded yet
+    bool timestamp_downloaded= false;
     command_p= command;
     stecpy(&command_p,command_e,"wget -nv -c ");
     stecpy(&command_p,command_e,global_base_url);
@@ -810,7 +827,21 @@ static int64_t get_changefile_timestamp(
     stecpy(&command_p,command_e,".state.txt -O \"");
     steesccpy(&command_p,command_e,timestamp_cachefile_name);
     stecpy(&command_p,command_e,"\" 2>&1");
-    shell_command(command,result);
+    int attempt;
+    for(attempt= 0; attempt<WGET_MAX_RETRIES && !timestamp_downloaded;
+        attempt++) {
+      shell_command(command,result);
+      if(shell_command_exit_status==0 &&
+          file_length(timestamp_cachefile_name)>=10)
+        timestamp_downloaded= true;
+      else if(loglevel>0 && attempt+1<WGET_MAX_RETRIES)
+        PINFOv("Retrying wget command (%i/%i).",attempt+2,WGET_MAX_RETRIES);
+      }
+    if(!timestamp_downloaded) {
+      PERRv("Could not download %s changefile %i timestamp after %i attempts.",
+        CFTNAME(changefile_type),file_sequence_number,WGET_MAX_RETRIES)
+exit(1);
+      }
     }  // timestamp has not been downloaded yet
 
   // read the timestamp cache file
@@ -910,6 +941,9 @@ static void process_changefile(
   if(file_sequence_number!=0) {  // changefile download requested
     char* this_cachefile_name=
       cachefile_name[number_of_changefiles_in_cache];
+    char changefile_url[600];
+    char* changefile_url_p;
+    char* changefile_url_e;
     int64_t old_file_length;
     char* sp;
 
@@ -941,44 +975,68 @@ static void process_changefile(
           PINFOv("%s changefile %i: checking",
             CFTNAME(changefile_type),file_sequence_number)
         }  // verbose mode
-      command_p= command;
-      stecpy(&command_p,command_e,"wget -nv -c ");
-      stecpy(&command_p,command_e,global_base_url);
+      changefile_url_p= changefile_url;
+      changefile_url_e= changefile_url+sizeof(changefile_url);
+      stecpy(&changefile_url_p,changefile_url_e,global_base_url);
       switch(changefile_type) {  // changefile type
       case cft_MINUTELY:
-        stecpy(&command_p,command_e,"/minute");
+        stecpy(&changefile_url_p,changefile_url_e,"/minute");
         break;
       case cft_HOURLY:
-        stecpy(&command_p,command_e,"/hour");
+        stecpy(&changefile_url_p,changefile_url_e,"/hour");
         break;
       case cft_DAILY:
-        stecpy(&command_p,command_e,"/day");
+        stecpy(&changefile_url_p,changefile_url_e,"/day");
         break;
       case cft_SPORADIC:
         break;
       default:  // invalid change file type
         return;
         }  // changefile type
-      stecpy(&command_p,command_e,global_base_url_suffix);
-      stecpy(&command_p,command_e,"/");
+      stecpy(&changefile_url_p,changefile_url_e,global_base_url_suffix);
+      stecpy(&changefile_url_p,changefile_url_e,"/");
 
       /* process sequence number */ {
         int l;
-        l= sprintf(command_p,"%03i/%03i/%03i.osc.gz",
+        l= snprintf(changefile_url_p,
+          changefile_url_e-changefile_url_p,
+          "%03i/%03i/%03i.osc.gz",
           file_sequence_number/1000000,file_sequence_number/1000%1000,
           file_sequence_number%1000);
-        command_p+= l;
+        if(l<0) l= 0;
+        if(l>=changefile_url_e-changefile_url_p)
+          changefile_url_p= changefile_url_e-1;
+        else
+          changefile_url_p+= l;
+        *changefile_url_p= 0;
         }  // process sequence number
 
+      command_p= command;
+      stecpy(&command_p,command_e,"wget -nv -c ");
+      stecpy(&command_p,command_e,changefile_url);
       stecpy(&command_p,command_e," -O \"");
       steesccpy(&command_p,command_e,this_cachefile_name);
       stecpy(&command_p,command_e,"\" 2>&1 && echo \"Wget Command Ok\"");
-      shell_command(command,result);
-      if(strstr(result,"Wget Command Ok")==NULL) {  // download error
-        PERRv("Could not download %s changefile %i",
-          CFTNAME(changefile_type),file_sequence_number)
-        PINFOv("wget Error message:\n%s",result)
+      {  // retry wget downloads on failure
+        bool changefile_downloaded= false;
+        int attempt;
+
+        for(attempt= 0; attempt<WGET_MAX_RETRIES && !changefile_downloaded;
+            attempt++) {
+          shell_command(command,result);
+          if(shell_command_exit_status==0 &&
+              strstr(result,"Wget Command Ok")!=NULL)
+            changefile_downloaded= true;
+          else if(loglevel>0 && attempt+1<WGET_MAX_RETRIES)
+            PINFOv("Retrying wget command (%i/%i).",attempt+2,
+              WGET_MAX_RETRIES);
+          }
+        if(!changefile_downloaded) {  // download error
+          PERRv("Could not download %s changefile %i (URL: %s)",
+            CFTNAME(changefile_type),file_sequence_number,changefile_url)
+          PINFOv("wget Error message:\n%s",result)
 exit(1);
+          }
         }
       if(loglevel>0 && old_file_length>=10) {
           // verbose mode AND file was already in cache
@@ -1677,4 +1735,3 @@ return 21;
 
   return main_return_value;
   }  // end   main()
-
