@@ -134,8 +134,8 @@ const char* helptext=
 #include <unistd.h>
 #include <fcntl.h>
 #include <inttypes.h>
+#include <stdbool.h>
 
-typedef enum {false= 0,true= 1} bool;
 #define isdig(x) isdigit((unsigned char)(x))
 static int loglevel= 0;  // logging to stderr;
   // 0: no logging; 1: small logging; 2: normal logging;

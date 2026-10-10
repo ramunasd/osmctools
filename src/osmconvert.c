@@ -464,6 +464,7 @@ const char* helptext=
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include <stdbool.h>
 #include <locale.h>
 #include <time.h>
 #include <ctype.h>
@@ -471,7 +472,6 @@ const char* helptext=
 #include <fcntl.h>
 #include <signal.h>
 
-typedef enum {false= 0,true= 1} bool;
 typedef uint8_t byte;
 typedef unsigned int uint;
 #define isdig(x) isdigit((unsigned char)(x))

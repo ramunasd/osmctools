@@ -381,6 +381,7 @@ const char* helptext=
 
 #define _FILE_OFFSET_BITS 64
 #include <inttypes.h>
+#include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -390,7 +391,6 @@ const char* helptext=
 #include <fcntl.h>
 #include <signal.h>
 
-typedef enum {false= 0,true= 1} bool;
 typedef uint8_t byte;
 typedef unsigned int uint;
 #define isdig(x) isdigit((unsigned char)(x))

@@ -206,8 +206,8 @@ const char* helptext=
 #include <unistd.h>
 #include <fcntl.h>
 #include <signal.h>
+#include <stdbool.h>
 
-typedef enum {false= 0,true= 1} bool;
 typedef uint8_t byte;
 typedef unsigned int uint;
 #define isdig(x) isdigit((unsigned char)(x))
